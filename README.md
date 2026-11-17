@@ -50,7 +50,7 @@ What needs you can sit above everything else, with a note saying why, put there 
 
 ### Calendar
 
-For Exchange and Microsoft 365 accounts: day, week, month and year; create and change events; answer invitations; and see which emails are about a meeting.
+Your Exchange and Microsoft 365 calendars, and the calendars in Thunderbird: Google Calendar, iCloud and other CalDAV calendars, and subscriptions. Day, week, month and year; create and change events; answer invitations; and see which emails are about a meeting. Using Gmail? Click **Connect Google Calendar** in the calendar's sidebar.
 
 ![Ember's calendar, week view](screenshots/calendar.png)
 
@@ -58,7 +58,7 @@ For Exchange and Microsoft 365 accounts: day, week, month and year; create and c
 
 ![Availability while planning an event](screenshots/availability.png)
 
-**Shared calendars.** See colleagues' calendars beside yours: in full when they've shared it with you, or just when they're busy.
+**Shared calendars** (Exchange). See colleagues' calendars beside yours: in full when they've shared it with you, or just when they're busy.
 
 ![A colleague's calendar beside yours](screenshots/shared-calendars.png)
 
@@ -102,11 +102,7 @@ Measured with Ember 1.0.0 on Thunderbird 158.0.1, a MacBook Pro (M1 Max, 64 GB, 
 
 ## Your data
 
-Your email stays in Thunderbird on your Mac. Ember has no account, no server and no analytics. It connects to:
-
-- your mail and calendar servers, through Thunderbird;
-- GitHub, to check for updates;
-- only if you turn them on: Cloudflare (AI sorting, with your own key), VirusTotal (attachment checks, with your own key, sending only a file's fingerprint unless you choose to upload it), and Google, Microsoft and Dropbox (to check whether a shared link opens without signing in).
+Your email stays on your Mac and with your mail provider. Ember has no account, no server of its own and no analytics. It connects to your mail and calendar providers (through Thunderbird) and to GitHub for updates. A few features connect elsewhere: remote images and the shared-link check, which are on by default and can be turned off, and AI sorting, Trips and VirusTotal checks, which stay off until you turn them on with your own account. **[Privacy: exactly what Ember keeps and sends](PRIVACY.md)**
 
 ## Going back to Thunderbird
 
