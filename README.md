@@ -8,7 +8,9 @@ Ember replaces Thunderbird's everyday window with a clean mail app: a Smart Inbo
 
 **[Download the latest version](https://github.com/MerrittFranzmann/ember-for-thunderbird/releases/latest)**
 
-![Ember's Smart Inbox with an email open](screenshots/inbox.png)
+[![A 45-second tour of Ember: easy-to-read email, the Smart Inbox, AI agents, the calendar, dark mode and Touch ID](media/ember-tour.webp)](media/ember-tour.mp4)
+
+<sub>A 45-second tour. [Download it as a video](media/ember-tour.mp4).</sub>
 
 ## What you need
 
