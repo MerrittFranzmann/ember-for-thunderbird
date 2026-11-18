@@ -1,8 +1,3 @@
-
-
-
-
-
 <p align="center"><img src="https://raw.githubusercontent.com/MerrittFranzmann/ember-for-thunderbird/main/ember.svg" width="96" alt=""></p>
 
 <h1 align="center">Ember for Thunderbird</h1>
@@ -13,10 +8,9 @@ Ember replaces Thunderbird's everyday window with a clean mail app: a Smart Inbo
 
 **[Download the latest version](https://github.com/MerrittFranzmann/ember-for-thunderbird/releases/latest)**
 
-[![A 50-second tour of Ember: easy-to-read email, the Smart Inbox, AI agents, the calendar, dark mode and Touch ID][(media/ember-tour.webp)](media/ember-tour.mp4)](https://github.com/user-attachments/assets/8c241dbd-4f99-44e1-a043-e77b933b4148
-)
+https://github.com/user-attachments/assets/8c241dbd-4f99-44e1-a043-e77b933b4148
 
-<sub>A 50-second tour. [Download it as a video](media/ember-tour.mp4).</sub>
+<sub>A 50-second tour of Ember. [Download the video](media/ember-tour.mp4).</sub>
 
 ## What you need
 
