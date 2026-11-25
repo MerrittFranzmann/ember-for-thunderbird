@@ -1,0 +1,26 @@
+[
+  {
+    "namespace": "sparkLinks",
+    "description": "Whether a Google Drive, OneDrive/SharePoint or Dropbox link opens for someone who isn't signed in, and one-click unsubscribes.",
+    "functions": [
+      {
+        "name": "access",
+        "type": "function",
+        "async": true,
+        "description": "Visits the link without cookies or sign-in. status: public (anyone with the link), signin (needs an account with access), missing (no such file), or unknown; title: the file's name when public.",
+        "parameters": [
+          { "name": "url", "type": "string" }
+        ]
+      },
+      {
+        "name": "unsubscribe",
+        "type": "function",
+        "async": true,
+        "description": "One-click unsubscribe (RFC 8058): POSTs List-Unsubscribe=One-Click to the list's https address, without cookies. ok: the list accepted it.",
+        "parameters": [
+          { "name": "url", "type": "string" }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,286 @@
+{
+  "manifest_version": 3,
+  "name": "Ember for Thunderbird",
+  "short_name": "Ember",
+  "version": "1.0.8",
+  "description": "A fast, focused mail app inside Thunderbird: Smart Inbox, conversations, quick actions, calendar and an in-app composer. Thunderbird keeps doing accounts, sync, storage and sending.",
+  "author": "Merritt Franzmann",
+  "homepage_url": "https://github.com/MerrittFranzmann/ember-for-thunderbird",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thunderbird-spark@merrittfranzmann",
+      "strict_min_version": "158.0"
+    }
+  },
+  "icons": {
+    "16": "icons/ember.svg",
+    "32": "icons/ember.svg",
+    "64": "icons/ember.svg"
+  },
+  "action": {
+    "default_title": "Open Ember",
+    "default_label": "Ember",
+    "default_icon": "icons/ember.svg"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "permissions": [
+    "accountsRead",
+    "messagesRead",
+    "messagesUpdate",
+    "messagesModify",
+    "messagesMove",
+    "messagesDelete",
+    "compose",
+    "compose.send",
+    "compose.save",
+    "messages.save",
+    "addressBooks",
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "alarms",
+    "notifications",
+    "downloads"
+  ],
+  "optional_permissions": [
+    "messages.send"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "commands": {
+    "toggle-spark": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "MacCtrl+Shift+S"
+      },
+      "description": "Switch between Ember and Thunderbird"
+    }
+  },
+  "experiment_apis": {
+    "sparkCalendar": {
+      "schema": "experiments/calendar/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkCalendar"
+          ]
+        ],
+        "script": "experiments/calendar/implementation.js"
+      }
+    },
+    "sparkWindow": {
+      "schema": "experiments/window/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkWindow"
+          ]
+        ],
+        "script": "experiments/window/implementation.js",
+        "events": [
+          "startup"
+        ]
+      }
+    },
+    "sparkSearch": {
+      "schema": "experiments/search/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkSearch"
+          ]
+        ],
+        "script": "experiments/search/implementation.js"
+      }
+    },
+    "sparkUpdate": {
+      "schema": "experiments/update/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkUpdate"
+          ]
+        ],
+        "script": "experiments/update/implementation.js"
+      }
+    },
+    "sparkPrint": {
+      "schema": "experiments/print/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkPrint"
+          ]
+        ],
+        "script": "experiments/print/implementation.js"
+      }
+    },
+    "sparkLinks": {
+      "schema": "experiments/links/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkLinks"
+          ]
+        ],
+        "script": "experiments/links/implementation.js"
+      }
+    },
+    "sparkAI": {
+      "schema": "experiments/ai/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkAI"
+          ]
+        ],
+        "script": "experiments/ai/implementation.js"
+      }
+    },
+    "sparkAgent": {
+      "schema": "experiments/agent/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkAgent"
+          ]
+        ],
+        "script": "experiments/agent/implementation.js"
+      }
+    },
+    "sparkFocus": {
+      "schema": "experiments/focus/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkFocus"
+          ]
+        ],
+        "script": "experiments/focus/implementation.js"
+      }
+    },
+    "sparkLock": {
+      "schema": "experiments/lock/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkLock"
+          ]
+        ],
+        "script": "experiments/lock/implementation.js",
+        "events": [
+          "startup"
+        ]
+      }
+    },
+    "sparkScan": {
+      "schema": "experiments/scan/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkScan"
+          ]
+        ],
+        "script": "experiments/scan/implementation.js"
+      }
+    },
+    "sparkArchive": {
+      "schema": "experiments/archive/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkArchive"
+          ]
+        ],
+        "script": "experiments/archive/implementation.js"
+      }
+    },
+    "sparkSend": {
+      "schema": "experiments/send/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkSend"
+          ]
+        ],
+        "script": "experiments/send/implementation.js"
+      }
+    },
+    "sparkJunk": {
+      "schema": "experiments/junk/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkJunk"
+          ]
+        ],
+        "script": "experiments/junk/implementation.js"
+      }
+    },
+    "sparkMailLinks": {
+      "schema": "experiments/maillinks/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "sparkMailLinks"
+          ]
+        ],
+        "script": "experiments/maillinks/implementation.js"
+      }
+    }
+  }
+}

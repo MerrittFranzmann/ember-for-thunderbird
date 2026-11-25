@@ -1,0 +1,87 @@
+[
+  {
+    "namespace": "sparkWindow",
+    "description": "Ember-only mode: Thunderbird keeps running (accounts, sync, sending) with its own window hidden.",
+    "functions": [
+      {
+        "name": "configure",
+        "type": "function",
+        "async": true,
+        "description": "Turn Ember-only mode and the lighter Thunderbird settings on or off.",
+        "parameters": [
+          {
+            "name": "options",
+            "type": "object",
+            "properties": {
+              "sparkOnly": { "type": "boolean" },
+              "lighten": { "type": "boolean" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "showThunderbird",
+        "type": "function",
+        "async": true,
+        "description": "Show and focus Thunderbird's main window (opening one if none exists).",
+        "parameters": []
+      },
+      {
+        "name": "titlebar",
+        "type": "function",
+        "async": true,
+        "description": "For the calling page's window: draw under the title bar (Ember's own window) and say how much room to leave at the top.",
+        "parameters": []
+      },
+      {
+        "name": "setDockIcon",
+        "type": "function",
+        "async": true,
+        "description": "Ember's icon in the Dock while Ember-only mode is on: save the picture (base64 PNG) and show it or not. Returns whether it's shown.",
+        "parameters": [{ "name": "options", "type": "object", "properties": { "png": { "type": "string", "optional": true }, "show": { "type": "boolean", "optional": true } } }]
+      },
+      {
+        "name": "openAccountSetup",
+        "type": "function",
+        "async": true,
+        "description": "Show Thunderbird's main window with its account setup (to add an email account).",
+        "parameters": []
+      },
+      {
+        "name": "hideThunderbird",
+        "type": "function",
+        "async": true,
+        "description": "In Ember-only mode, hide Thunderbird's main windows again.",
+        "parameters": []
+      },
+      {
+        "name": "focusSpark",
+        "type": "function",
+        "async": true,
+        "description": "Restore (if minimized) and focus the Ember window. windows.update can't un-minimize while Thunderbird isn't the active app.",
+        "parameters": []
+      },
+      {
+        "name": "state",
+        "type": "function",
+        "async": true,
+        "description": "Current mode and whether a Thunderbird main window is visible.",
+        "parameters": []
+      }
+    ],
+    "events": [
+      {
+        "name": "onOpenMessage",
+        "type": "function",
+        "description": "In Ember-only mode, Thunderbird was asked to show a message (for example a new-mail notification was clicked); Ember should open it.",
+        "parameters": [{ "name": "messageId", "type": "integer" }]
+      },
+      {
+        "name": "onReopen",
+        "type": "function",
+        "description": "Thunderbird tried to bring its main window back while in Ember-only mode (for example a new main window opened); Ember should show itself instead.",
+        "parameters": []
+      }
+    ]
+  }
+]

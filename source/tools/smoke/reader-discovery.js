@@ -1,0 +1,16 @@
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+const wait=async(predicate,label)=>{const end=Date.now()+20000;while(!predicate()){if(Date.now()>end)throw new Error('Timed out: '+label);await pause(25);}};
+window.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true })); await new Promise(r => setTimeout(r, 200)); const input=document.querySelector('.search input');input.value='Reading pane layout review';input.dispatchEvent(new Event('input',{bubbles:true}));input.closest('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+await wait(()=>!document.querySelector('.mini-spin')&&[...document.querySelectorAll('.row .subject')].some(n=>n.textContent==='Reading pane layout review'),'conversation row');
+[...document.querySelectorAll('.row')].find(r=>r.querySelector('.subject')?.textContent==='Reading pane layout review').click();
+const find=()=>[...document.querySelectorAll('.thread-controls button')].find(b=>b.textContent==='Find older replies');
+await wait(()=>document.querySelectorAll('.thread .msg').length===5&&find()&&!find().disabled,'saved cross-folder replies');
+const savedCount=document.querySelectorAll('.thread .msg').length;find().click();
+await wait(()=>document.querySelector('.thread')?.dataset.relatedBusy==='false'&&[...document.querySelectorAll('.thread-controls button')].some(b=>b.textContent==='Check for more replies'),'explicit older search');
+const discoveredCount=document.querySelectorAll('.thread .msg').length;
+document.querySelector('button[aria-label="Close conversation"]').click();await pause(50);
+[...document.querySelectorAll('.row')].find(r=>r.querySelector('.subject')?.textContent==='Reading pane layout review').click();
+await wait(()=>find()&&!find().disabled&&document.querySelector('.thread')?.dataset.relatedBusy==='false','reopened local thread');
+const reopenedCount=document.querySelectorAll('.thread .msg').length;
+if(savedCount!==5||discoveredCount!==5||reopenedCount!==5)throw new Error('Related replies changed unexpectedly');
+return {version:messenger.runtime.getManifest().version,savedCount,discoveredCount,reopenedCount,olderSearchControl:true};

@@ -1,0 +1,31 @@
+[
+  {
+    "namespace": "sparkAI",
+    "description": "AI sorting through the user's own Cloudflare Workers AI account (Clef decision models).",
+    "functions": [
+      {
+        "name": "clef",
+        "type": "function",
+        "async": true,
+        "description": "Send one Clef request (state + questions) to Cloudflare Workers AI. Returns the HTTP status and Cloudflare's JSON answer.",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "token", "type": "string" },
+          { "name": "model", "type": "string", "enum": ["clef", "clef-flash"] },
+          { "name": "request", "type": "object", "additionalProperties": { "type": "any" } }
+        ]
+      },
+      {
+        "name": "llm",
+        "type": "function",
+        "async": true,
+        "description": "Send one request (messages + JSON schema) to the Workers AI text model that reads travel bookings. Returns the HTTP status and Cloudflare's JSON answer.",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "token", "type": "string" },
+          { "name": "request", "type": "object", "additionalProperties": { "type": "any" } }
+        ]
+      }
+    ]
+  }
+]

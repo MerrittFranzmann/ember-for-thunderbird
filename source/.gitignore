@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.xpi
+.DS_Store
+__pycache__/
+*.pyc
+slim/suite-results.json

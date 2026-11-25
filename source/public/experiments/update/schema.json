@@ -1,0 +1,58 @@
+[
+  {
+    "namespace": "sparkUpdate",
+    "description": "Automatic updates: Ember's signed public releases on GitHub, or a local release folder (tests and development).",
+    "functions": [
+      {
+        "name": "check",
+        "type": "function",
+        "async": true,
+        "description": "The version Ember's releases (or a release folder) offer and whether it's newer than this one.",
+        "parameters": [
+          {
+            "name": "folder",
+            "type": "string",
+            "optional": true,
+            "description": "A local release folder (tests); omitted: Ember's GitHub releases."
+          },
+          {
+            "name": "fresh",
+            "type": "boolean",
+            "optional": true,
+            "description": "Ask GitHub now rather than use the last hour's answer."
+          }
+        ]
+      },
+      {
+        "name": "install",
+        "type": "function",
+        "async": true,
+        "description": "Download (or read) the offered XPI, check it against the signed release, and install it. Ember restarts as the new version.",
+        "parameters": [
+          {
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "name": "folder",
+            "type": "string",
+            "optional": true
+          }
+        ]
+      },
+      {
+        "name": "openNotes",
+        "type": "function",
+        "async": true,
+        "description": "Show the offered release's notes (its GitHub page, or the folder's notes file).",
+        "parameters": [
+          {
+            "name": "folder",
+            "type": "string",
+            "optional": true
+          }
+        ]
+      }
+    ]
+  }
+]

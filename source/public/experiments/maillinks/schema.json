@@ -1,0 +1,20 @@
+[
+  {
+    "namespace": "sparkMailLinks",
+    "description": "Links that open an email in Ember: Thunderbird answers http://127.0.0.1:<port>/email/<code> on the loopback address only, and tells the background which email was clicked.",
+    "functions": [
+      { "name": "start", "type": "function", "async": true, "description": "Listen for links (loopback only). Returns { url }: the links' address.", "parameters": [] },
+      { "name": "stop", "type": "function", "async": true, "description": "Stop listening.", "parameters": [] },
+      { "name": "address", "type": "function", "async": true, "description": "The links' address while listening, else null.", "parameters": [] },
+      { "name": "activate", "type": "function", "async": true, "description": "Bring Thunderbird to the front.", "parameters": [] }
+    ],
+    "events": [
+      {
+        "name": "onOpen",
+        "type": "function",
+        "description": "A link was opened: the email's code (mail-links.ts).",
+        "parameters": [ { "name": "code", "type": "string" } ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "namespace": "sparkAgent",
+    "description": "A local socket for AI agents (MCP): requests are answered by the open Ember window. Off until the user enables it.",
+    "functions": [
+      { "name": "start", "type": "function", "async": true, "description": "Open the socket (only the user's account can connect). Returns its path.", "parameters": [] },
+      { "name": "stop", "type": "function", "async": true, "description": "Close the socket.", "parameters": [] },
+      { "name": "installServer", "type": "function", "async": true, "description": "Write Ember's MCP server (its text) beside the socket, and refresh a copy where older versions kept it. Returns its path.", "parameters": [{ "name": "source", "type": "string" }] },
+      { "name": "running", "type": "function", "async": true, "description": "The socket's path while it's open, else null.", "parameters": [] },
+      {
+        "name": "reply",
+        "type": "function",
+        "async": true,
+        "description": "Answer a request (JSON: { result } or { error }). False when another page answered first.",
+        "parameters": [ { "name": "key", "type": "string" }, { "name": "json", "type": "string" } ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onRequest",
+        "type": "function",
+        "description": "An agent's request: answer it with reply(key, …).",
+        "parameters": [ { "name": "key", "type": "string" }, { "name": "method", "type": "string" }, { "name": "params", "type": "string" } ]
+      }
+    ]
+  }
+]

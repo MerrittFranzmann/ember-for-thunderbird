@@ -1,0 +1,30 @@
+[
+  {
+    "namespace": "sparkFocus",
+    "description": "Focus: which network this Mac is on (to show work mail on work networks), and Thunderbird's own new-mail alerts (off while Ember decides which new mail to announce).",
+    "functions": [
+      {
+        "name": "network",
+        "type": "function",
+        "async": true,
+        "description": "The network this Mac is on: key (a hash of its router's hardware and IP address, the same each time; null when offline or unknown), router (its IP address), dns (the network's DNS suffixes, a hint for naming it), linkUp.",
+        "parameters": []
+      },
+      {
+        "name": "setMailAlerts",
+        "type": "function",
+        "async": true,
+        "description": "Thunderbird's new-mail alert and sound: false turns them off (remembering how they were), true puts them back as they were.",
+        "parameters": [ { "name": "on", "type": "boolean" } ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onNetworkChanged",
+        "type": "function",
+        "description": "The network may have changed (connected, disconnected, another network). Ask network() again.",
+        "parameters": []
+      }
+    ]
+  }
+]

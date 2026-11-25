@@ -1,0 +1,18 @@
+[
+  {
+    "namespace": "sparkSend",
+    "description": "Send a reply, a reply draft or a forward without Thunderbird's composer window, in the thread (References, In-Reply-To), marking the original as answered.",
+    "functions": [
+      {
+        "name": "send",
+        "type": "function",
+        "async": true,
+        "description": "Send now. details: { to, cc, bcc (\"Name <address>\" strings), subject, body (HTML, quote included), isPlainText, identityId, attachments: [{ file, name }] }. options: { kind: reply | forward | draft, relatedId (the email answered, or the draft) }. Returns { headerMessageId }.",
+        "parameters": [
+          { "name": "details", "type": "object", "additionalProperties": { "type": "any" } },
+          { "name": "options", "type": "object", "additionalProperties": { "type": "any" } }
+        ]
+      }
+    ]
+  }
+]

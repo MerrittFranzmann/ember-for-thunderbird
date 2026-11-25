@@ -1,0 +1,4 @@
+This add-on bundles ICAL.js 2.2.1, licensed under Mozilla Public License 2.0.
+Copyright and license terms: see ical.js-LICENSE in this directory.
+Original source: https://github.com/kewisch/ical.js/tree/v2.2.1
+ICAL.js has not been modified. It is bundled locally; no remote scripts are loaded.

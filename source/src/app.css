@@ -1,0 +1,278 @@
+/* Ember for Thunderbird — design tokens + base styles.
+   The theme is resolved in App.svelte (system / light / dark) and written to
+   <html data-theme>. Contrast: text tokens are >= 4.5:1 on their surfaces. */
+
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --row-h: 84px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+  --med: 200ms;
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --sidebar: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --surface-3: #eceef2;
+  --reader: #f7f8fa;
+  --card: #ffffff; /* message cards in the reader */
+  --text: #1c1c1f;
+  --text-2: #5f6168;
+  --text-3: #6e7079; /* still 4.6:1 on white */
+  --sep: rgba(20, 24, 36, 0.08);
+  --sep-strong: rgba(20, 24, 36, 0.14);
+  --accent: #0a66e8;
+  --accent-text: #0a5fd6;
+  --accent-soft: rgba(10, 102, 232, 0.1);
+  --accent-softer: rgba(10, 102, 232, 0.06);
+  --on-accent: #ffffff;
+  --selected: rgba(10, 102, 232, 0.11);
+  --selected-strong: #0a66e8;
+  --hover: rgba(20, 24, 36, 0.045);
+  --sidebar-active: rgba(20, 24, 36, 0.08); /* selected sidebar row: light grey, like Spark */
+  --unread: #0a66e8;
+  --star: #e8a400;
+  --danger: #d1242f;
+  --warning-text: #9a5300;
+  --success: #12804a;
+  --trip: #0f766e;
+  --trip-soft: rgba(15, 118, 110, 0.1);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow: 0 2px 6px rgba(16, 24, 40, 0.06), 0 10px 28px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 8px 24px rgba(16, 24, 40, 0.12), 0 32px 64px rgba(16, 24, 40, 0.16);
+  --focus: 0 0 0 3px rgba(10, 102, 232, 0.35);
+  --paper: #ffffff;
+  --paper-border: transparent;
+  --email-text: #000000; /* Ember's email body colours */
+  --email-link: #007cff;
+  --chip: #eef1f5;
+  --scrim: rgba(15, 18, 26, 0.32);
+}
+
+:root {
+  /* Account colours (sidebar dots): darker in light mode, lighter in dark mode, each >= 3:1 on the sidebar. */
+  --account-0: #2563eb; --account-1: #c2410c; --account-2: #15803d; --account-3: #7c3aed;
+  --account-4: #be185d; --account-5: #0f766e; --account-6: #a16207; --account-7: #b91c1c;
+}
+:root[data-theme="dark"] {
+  --account-0: #60a5fa; --account-1: #fb923c; --account-2: #4ade80; --account-3: #a78bfa;
+  --account-4: #f472b6; --account-5: #2dd4bf; --account-6: #facc15; --account-7: #f87171;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1b1e;
+  --sidebar: #141416;
+  --surface: #1e1e21;
+  --surface-2: #26262a;
+  --surface-3: #303035;
+  --reader: #1f2124; /* Ember's dark reader backdrop and card */
+  --card: #282a2e;
+  --text: #f1f1f4;
+  --text-2: #b0b0b8;
+  --text-3: #9a9aa3;
+  --sep: rgba(255, 255, 255, 0.07);
+  --sep-strong: rgba(255, 255, 255, 0.12);
+  --accent: #3b8cff;
+  --accent-text: #6aa8ff;
+  --accent-soft: rgba(59, 140, 255, 0.18);
+  --accent-softer: rgba(59, 140, 255, 0.1);
+  --on-accent: #ffffff;
+  --selected: rgba(59, 140, 255, 0.2);
+  --selected-strong: #3b8cff;
+  --hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active: rgba(255, 255, 255, 0.1);
+  --unread: #4c97ff;
+  --star: #f5b72a;
+  --danger: #ff6b6b;
+  --warning-text: #f2b25c;
+  --success: #3ccf86;
+  --trip: #2dd4bf;
+  --trip-soft: rgba(45, 212, 191, 0.13);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5), 0 32px 64px rgba(0, 0, 0, 0.5);
+  --focus: 0 0 0 3px rgba(76, 151, 255, 0.5);
+  --paper: #ffffff;
+  --paper-border: rgba(255, 255, 255, 0.08);
+  --email-text: #dee3eb;
+  --email-link: #439fff;
+  --chip: #2c2c31;
+  --scrim: rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: 8px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Scrollbars: thin and quiet */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sep-strong) transparent;
+}
+
+/* Shared button styles */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-2);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.icon-btn:active {
+  transform: scale(0.96);
+}
+.icon-btn[aria-pressed="true"] {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--sep);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), transform var(--fast) var(--ease);
+  white-space: nowrap;
+}
+.pill:hover {
+  background: var(--surface-3);
+}
+.pill:active {
+  transform: scale(0.98);
+}
+.pill.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+.pill.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+}
+.pill.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.pill.ghost:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.pill:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+kbd {
+  font: 500 11px/1 var(--font);
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  border: 1px solid var(--sep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation: none !important;
+  }
+}
+
+/* Like Spark: the sidebar stays dark in light mode. Dark mode's tokens, on the sidebar column only (its menus and
+   pickers included), so everything in it reads as it does in dark mode. */
+:root[data-theme="light"] .col-side {
+  color-scheme: dark;
+  --sidebar: #26272b;
+  --surface: #2e2f33;
+  --surface-2: #34353a;
+  --surface-3: #3c3d42;
+  --card: #2e2f33;
+  --text: #f1f1f4;
+  --text-2: #c2c2ca;
+  --text-3: #9d9da6;
+  --sep: rgba(255, 255, 255, 0.08);
+  --sep-strong: rgba(255, 255, 255, 0.14);
+  --accent-text: #7ab3ff;
+  --accent-soft: rgba(59, 140, 255, 0.2);
+  --hover: rgba(255, 255, 255, 0.06);
+  --sidebar-active: rgba(255, 255, 255, 0.12);
+  --chip: #36373c;
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45), 0 32px 64px rgba(0, 0, 0, 0.45);
+  --account-0: #60a5fa; --account-1: #fb923c; --account-2: #4ade80; --account-3: #a78bfa;
+  --account-4: #f472b6; --account-5: #2dd4bf; --account-6: #facc15; --account-7: #f87171;
+}

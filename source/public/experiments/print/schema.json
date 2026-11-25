@@ -1,0 +1,25 @@
+[
+  {
+    "namespace": "sparkPrint",
+    "description": "Print an HTML document Ember laid out (a conversation) silently to PDF (Thunderbird has no tabs.saveAsPDF).",
+    "functions": [
+      {
+        "name": "htmlToPDF",
+        "type": "function",
+        "async": true,
+        "description": "The PDF bytes of the document, loaded without scripts and printed to US Letter or A4 with page numbers.",
+        "parameters": [
+          { "name": "html", "type": "string" },
+          {
+            "name": "options",
+            "type": "object",
+            "optional": true,
+            "properties": {
+              "paper": { "type": "string", "enum": ["letter", "a4"], "optional": true }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

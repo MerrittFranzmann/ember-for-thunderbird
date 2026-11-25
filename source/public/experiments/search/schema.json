@@ -1,0 +1,54 @@
+[
+  {
+    "namespace": "sparkSearch",
+    "description": "Search all mail with Thunderbird's own search engine (the Search Messages dialog), which ignores case and reads each message once.",
+    "functions": [
+      {
+        "name": "search",
+        "type": "function",
+        "async": true,
+        "description": "Messages (newest first, junk left out) whose subject, sender, recipients or body contain every word and quoted phrase of the query. A newer search interrupts one still running.",
+        "parameters": [
+          { "name": "query", "type": "string" },
+          {
+            "name": "options",
+            "type": "object",
+            "optional": true,
+            "properties": {
+              "headersOnly": { "type": "boolean", "optional": true, "description": "Subject, sender and recipients only (no message bodies): fast." },
+              "before": { "type": "string", "optional": true },
+              "after": { "type": "string", "optional": true },
+              "limit": { "type": "integer", "optional": true, "minimum": 1 }
+            }
+          }
+        ]
+      },
+      {
+        "name": "locate",
+        "type": "function",
+        "async": true,
+        "description": "The message with each Message-ID in its folder, from the folder's Message-ID index (null when not found).",
+        "parameters": [
+          {
+            "name": "items",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "folderId": { "type": "string" },
+                "headerMessageId": { "type": "string" }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "cancel",
+        "type": "function",
+        "async": true,
+        "description": "Stop the search in progress, if any.",
+        "parameters": []
+      }
+    ]
+  }
+]

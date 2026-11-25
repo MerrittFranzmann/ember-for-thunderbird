@@ -1,0 +1,15 @@
+[
+  {
+    "namespace": "sparkArchive",
+    "description": "Archive emails the way Thunderbird does, but report the ones that didn't move (messages.archive reports success even when the move to the server failed).",
+    "functions": [
+      {
+        "name": "archive",
+        "type": "function",
+        "async": true,
+        "description": "Archive emails with Thunderbird's archiver, then check each really left its folder. Returns { failed: [{ id, error }] }.",
+        "parameters": [ { "name": "messageIds", "type": "array", "items": { "type": "integer" } } ]
+      }
+    ]
+  }
+]

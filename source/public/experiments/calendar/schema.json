@@ -1,0 +1,272 @@
+[
+  {
+    "namespace": "sparkCalendar",
+    "description": "Calendar invitation responses through Thunderbird's own mail and Exchange plumbing.",
+    "functions": [
+      {
+        "name": "serverResponse",
+        "type": "function",
+        "async": true,
+        "description": "Whether the invitation's account can respond on the server (Exchange): the meeting is then accepted on the user's calendar too.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "type": "integer",
+            "minimum": 0
+          }
+        ]
+      },
+      {
+        "name": "respond",
+        "type": "function",
+        "async": true,
+        "description": "Respond to an Exchange meeting request the way Outlook does (AcceptItem / TentativelyAcceptItem / DeclineItem): updates the user's Exchange calendar and, unless send is false, sends the organizer a meeting response (with an optional note).",
+        "parameters": [
+          {
+            "name": "messageId",
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "name": "response",
+            "type": "string",
+            "enum": [
+              "accept",
+              "tentative",
+              "decline"
+            ]
+          },
+          {
+            "name": "options",
+            "type": "object",
+            "optional": true,
+            "properties": {
+              "note": {
+                "type": "string",
+                "optional": true
+              },
+              "send": {
+                "type": "boolean",
+                "optional": true
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "meetingStatus",
+        "type": "function",
+        "async": true,
+        "description": "For a meeting request or cancellation in an Exchange mailbox: the user's current response, whether a newer version exists, and whether the meeting is on their calendar. Null for other accounts.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "type": "integer",
+            "minimum": 0
+          }
+        ]
+      },
+      {
+        "name": "removeFromCalendar",
+        "type": "function",
+        "async": true,
+        "description": "Remove a cancelled meeting from the user's Exchange calendar (Outlook's Remove from Calendar).",
+        "parameters": [
+          {
+            "name": "messageId",
+            "type": "integer",
+            "minimum": 0
+          }
+        ]
+      },
+      {
+        "name": "calendarView",
+        "type": "function",
+        "async": true,
+        "description": "Events on the calendars of the user's Exchange accounts between two instants (at most two months), recurring meetings expanded. With details, each event also has its plain-text body (for join links).",
+        "parameters": [
+          {
+            "name": "start",
+            "type": "string"
+          },
+          {
+            "name": "end",
+            "type": "string"
+          },
+          {
+            "name": "options",
+            "type": "object",
+            "optional": true,
+            "properties": {
+              "details": {
+                "type": "boolean",
+                "optional": true
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "sendReply",
+        "type": "function",
+        "async": true,
+        "description": "Send an iMIP reply (RFC 6047) built exactly like Thunderbird's own invitation responses: text plus an inline text/calendar; method=REPLY part, and an invite.ics copy.",
+        "parameters": [
+          {
+            "name": "details",
+            "type": "object",
+            "properties": {
+              "identityId": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "calendar": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "calendars",
+        "type": "function",
+        "async": true,
+        "description": "The calendars Ember can reach: each Exchange account's main calendar, and Thunderbird's own calendars (Google and other CalDAV calendars, subscriptions, local ones): { accountId, name, email, kind, group, color?, readOnly?, google? }.",
+        "parameters": []
+      },
+      {
+        "name": "eventDetails",
+        "type": "function",
+        "async": true,
+        "description": "One calendar event with its plain-text notes and its organizer and attendees (with their answers when Exchange tracks them).",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "itemId",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "name": "createEvent",
+        "type": "function",
+        "async": true,
+        "description": "Make an event on an Exchange account's calendar. With attendees, Exchange sends them the invitation.",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "event", "type": "object", "additionalProperties": { "type": "any" } }
+        ]
+      },
+      {
+        "name": "updateEvent",
+        "type": "function",
+        "async": true,
+        "description": "Change an event the user owns (this occurrence, or the series). With send, its attendees get the update.",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "itemId", "type": "string" },
+          { "name": "event", "type": "object", "additionalProperties": { "type": "any" } },
+          { "name": "options", "type": "object", "optional": true, "additionalProperties": { "type": "any" } }
+        ]
+      },
+      {
+        "name": "deleteEvent",
+        "type": "function",
+        "async": true,
+        "description": "Delete an event (to Deleted Items). With cancel, the attendees get a cancellation (and the note).",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "itemId", "type": "string" },
+          { "name": "options", "type": "object", "optional": true, "additionalProperties": { "type": "any" } }
+        ]
+      },
+      {
+        "name": "availability",
+        "type": "function",
+        "async": true,
+        "description": "Busy times of some people from Exchange (GetUserAvailability), between two instants (a week at most).",
+        "parameters": [
+          { "name": "accountId", "type": "string" },
+          { "name": "emails", "type": "array", "items": { "type": "string" } },
+          { "name": "start", "type": "string" },
+          { "name": "end", "type": "string" }
+        ]
+      },
+      {
+        "name": "otherCalendars",
+        "type": "function",
+        "async": true,
+        "description": "Each Exchange account's other calendars: its extra calendar folders, and the shared calendars in its Outlook calendar list.",
+        "parameters": []
+      },
+      {
+        "name": "sharedView",
+        "type": "function",
+        "async": true,
+        "description": "Events of other calendars between two instants (two months at most): in full when the user may read them, else busy times.",
+        "parameters": [
+          { "name": "calendars", "type": "array", "items": { "type": "object", "additionalProperties": { "type": "any" } } },
+          { "name": "start", "type": "string" },
+          { "name": "end", "type": "string" }
+        ]
+      },
+      {
+        "name": "respondEvent",
+        "type": "function",
+        "async": true,
+        "description": "Answer a meeting from its entry on the user's Exchange calendar (accept, tentative or decline), telling the organizer.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "itemId",
+            "type": "string"
+          },
+          {
+            "name": "response",
+            "type": "string",
+            "enum": [
+              "accept",
+              "tentative",
+              "decline"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "connectable",
+        "type": "function",
+        "async": true,
+        "description": "Mail accounts (not Exchange) whose calendars Thunderbird could connect: { accountId, name, email, google, connected }.",
+        "parameters": []
+      },
+      {
+        "name": "connectCalendars",
+        "type": "function",
+        "async": true,
+        "description": "Find a mail account's calendars as Thunderbird's account setup does (Google's through its sign-in) and add the new ones to Thunderbird: { added, found }.",
+        "parameters": [{ "name": "accountId", "type": "string" }]
+      },
+      {
+        "name": "findInvitation",
+        "type": "function",
+        "async": true,
+        "description": "The user's copy of an invitation (by UID) on a Thunderbird calendar they can answer from, or null.",
+        "parameters": [{ "name": "uid", "type": "string" }]
+      }
+    ]
+  }
+]

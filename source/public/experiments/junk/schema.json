@@ -1,0 +1,25 @@
+[
+  {
+    "namespace": "sparkJunk",
+    "description": "Mark emails as spam or not spam the way Thunderbird's Junk button does: train Thunderbird's adaptive junk filter and set the user's junk status (messages.update only sets the status; the filter doesn't learn).",
+    "functions": [
+      {
+        "name": "guesses",
+        "type": "function",
+        "async": true,
+        "description": "Of these emails, the ones whose junk mark is only the adaptive junk filter's guess (not the user's verdict, a filter rule or the server's flag).",
+        "parameters": [{ "name": "messageIds", "type": "array", "items": { "type": "integer" } }]
+      },
+      {
+        "name": "classify",
+        "type": "function",
+        "async": true,
+        "description": "Train the junk filter with the user's verdict ('spam', 'good', or 'unknown' to take a verdict back) and set each email's junk status. Returns { trained, updated, missing }.",
+        "parameters": [
+          { "name": "messageIds", "type": "array", "items": { "type": "integer" } },
+          { "name": "verdict", "type": "string", "enum": ["spam", "good", "unknown"] }
+        ]
+      }
+    ]
+  }
+]

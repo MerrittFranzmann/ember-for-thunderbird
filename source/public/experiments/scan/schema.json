@@ -1,0 +1,33 @@
+[
+  {
+    "namespace": "sparkScan",
+    "description": "VirusTotal for attachments, with the user's own API key: look a file up by its SHA-256 (the file isn't sent), or upload one the user chose and follow its analysis.",
+    "functions": [
+      {
+        "name": "lookup",
+        "type": "function",
+        "async": true,
+        "description": "What VirusTotal knows about a file, by its SHA-256. Returns { status (HTTP), stats, flagged (engine → name, malicious only), error }. 404: VirusTotal hasn't seen it.",
+        "parameters": [ { "name": "apiKey", "type": "string" }, { "name": "sha256", "type": "string" } ]
+      },
+      {
+        "name": "upload",
+        "type": "function",
+        "async": true,
+        "description": "Upload a file for VirusTotal to scan (only when the user asked: VirusTotal shares uploaded files). Returns { status, analysis (id), error }.",
+        "parameters": [
+          { "name": "apiKey", "type": "string" },
+          { "name": "file", "type": "object", "isInstanceOf": "File", "additionalProperties": { "type": "any" } },
+          { "name": "name", "type": "string" }
+        ]
+      },
+      {
+        "name": "analysis",
+        "type": "function",
+        "async": true,
+        "description": "An upload's analysis. Returns { status, state (queued, in-progress, completed), stats, flagged, sha256, error }.",
+        "parameters": [ { "name": "apiKey", "type": "string" }, { "name": "id", "type": "string" } ]
+      }
+    ]
+  }
+]

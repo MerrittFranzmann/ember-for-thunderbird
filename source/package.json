@@ -1,0 +1,30 @@
+{
+  "name": "thunderbird-spark",
+  "version": "1.0.8",
+  "private": true,
+  "description": "Ember: a fast, focused mail app inside Thunderbird for Mac. Thunderbird keeps accounts, sync, storage and sending; Ember replaces the day-to-day interface.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build && node scripts/build-background.mjs",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "package": "npm run build && node scripts/package.mjs",
+    "fixtures": "python3 scripts/make_fixtures.py"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "fake-indexeddb": "6.2.6",
+    "rolldown": "1.2.15",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.7",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "ical.js": "2.2.1",
+    "pdfjs-dist": "6.4.299"
+  }
+}

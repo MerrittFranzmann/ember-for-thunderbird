@@ -1,0 +1,75 @@
+[
+  {
+    "namespace": "sparkLock",
+    "description": "Lock with Touch ID: Ember's windows stay covered until the user unlocks them with Touch ID (or the Mac's password). Locks by itself when the Mac is unused for a while, sleeps or locks its screen, and when Thunderbird starts.",
+    "functions": [
+      {
+        "name": "configure",
+        "type": "function",
+        "async": true,
+        "description": "The lock's settings: on/off, minutes unused before it locks (0 never), on sleep or screen lock, when Thunderbird starts. Kept in a pref so the lock works before the background starts. Turning it off unlocks.",
+        "parameters": [
+          {
+            "name": "config",
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "idleMinutes": { "type": "integer", "minimum": 0 },
+              "onSleep": { "type": "boolean" },
+              "onStart": { "type": "boolean" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "state",
+        "type": "function",
+        "async": true,
+        "description": "Whether Ember is locked now (and why, since when), whether this Mac can ask for Touch ID or its password, and the settings.",
+        "parameters": []
+      },
+      {
+        "name": "lock",
+        "type": "function",
+        "async": true,
+        "description": "Lock now (the user asked). Does nothing while the lock is off.",
+        "parameters": []
+      },
+      {
+        "name": "unlock",
+        "type": "function",
+        "async": true,
+        "description": "Ask macOS for Touch ID or the Mac's password, and unlock when it's given. Returns { unlocked }. One request at a time: a second call shares the first.",
+        "parameters": []
+      },
+      {
+        "name": "verify",
+        "type": "function",
+        "async": true,
+        "description": "Ask macOS for Touch ID or the Mac's password without changing the lock (to turn the lock on or off). The text finishes \"Thunderbird is trying to …\". Returns true when given.",
+        "parameters": [ { "name": "prompt", "type": "string" } ]
+      },
+      {
+        "name": "setTrusted",
+        "type": "function",
+        "async": true,
+        "description": "Whether the Mac is on a network the user trusts (Ember doesn't lock by itself there). Right after Thunderbird started or the Mac woke, a trusted network unlocks the lock those put on.",
+        "parameters": [ { "name": "trusted", "type": "boolean" } ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onChanged",
+        "type": "function",
+        "description": "Ember locked or unlocked.",
+        "parameters": [ { "name": "state", "type": "object", "additionalProperties": { "type": "any" } } ]
+      },
+      {
+        "name": "onWake",
+        "type": "function",
+        "description": "The Mac woke from sleep: find out which network this is (setTrusted).",
+        "parameters": []
+      }
+    ]
+  }
+]

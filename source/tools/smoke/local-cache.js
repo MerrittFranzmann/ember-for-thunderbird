@@ -1,0 +1,15 @@
+const {LocalMailCache,cachedAPI}=await import(messenger.runtime.getURL('cache-test.js'));
+const cache=new LocalMailCache(messenger);await cache.init();
+const headers=cache.all();const pinned=headers.filter(m=>m.flagged);const oldPins=pinned.filter(m=>+new Date(m.date)<Date.now()-90*86400000);
+if(!headers.length||headers.some(m=>m.id>=0))throw new Error('Fresh cache did not restore safe synthetic handles');
+const index=await cache.attachmentIndex();const withFile=index.find(record=>record.files.some(file=>file.name==='project-brief.pdf'))||index.find(record=>record.files.length);
+if(!withFile)throw new Error('Attachment metadata not restored');
+let calls=0;const offline={messages:{query:async()=>{calls++;throw new Error('offline')},getFull:async()=>{calls++;throw new Error('offline')},listAttachments:async()=>{calls++;throw new Error('offline')}}};
+const restored=new LocalMailCache(offline);await restored.init();const api=cachedAPI(offline,restored);
+const cached=restored.all().find(m=>m.headerMessageId===withFile.message.headerMessageId&&m.folder.id===withFile.message.folder.id);
+const full=await api.messages.getFull(cached.id);const files=await api.messages.listAttachments(cached.id);
+if(!full||!files.length||calls)throw new Error('Offline reading contacted backend or lost body/files');
+const current=await cache.resolve(withFile.message.id);const live=await messenger.messages.get(current);
+if(live.headerMessageId!==withFile.message.headerMessageId||current<0)throw new Error('Cached handle rebound to wrong email');
+const result={restoredHeaders:headers.length,pinned:pinned.length,olderThan90DayPins:oldPins.length,attachmentRecords:index.filter(r=>r.files.length).length,offlineBackendCalls:calls,offlineBody:!!full,offlineFiles:files.length,reboundMessageId:current};
+cache.close();restored.close();return result;
