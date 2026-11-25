@@ -114,6 +114,10 @@ Your email stays on your Mac and with your mail provider. Ember has no account, 
 
 Open an [issue](https://github.com/MerrittFranzmann/ember-for-thunderbird/issues), with your Ember and Thunderbird versions (**Settings → Troubleshooting → About**).
 
+## Source code
+
+Ember is open source under the [MIT License](LICENSE). The code is in [`source/`](source/), with how to build it and how it fits together. It's updated with every release.
+
 ---
 
 Ember is an independent project. It isn't made by, or affiliated with, Mozilla (Thunderbird) or Readdle (Spark).
