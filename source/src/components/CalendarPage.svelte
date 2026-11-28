@@ -12,7 +12,7 @@
     placeDay, sameDay, searchEvents, shortTime, shownEvents, startOfDay, titleFor, weekdayNames, type CalendarMode,
   } from "../lib/calendar-grid";
   import type { CalendarEvent } from "../lib/meeting-status";
-  import { draftForSlot } from "../lib/calendar-edit";
+  import { draftForSlot, draftFromEvent, hm, ymd } from "../lib/calendar-edit";
   import CalendarEventCard from "./CalendarEventCard.svelte";
   import Icon from "./Icon.svelte";
 
@@ -89,29 +89,39 @@
 
   // ---- The open event ----
   const selected = $derived(calendar.selectedEvent);
-  let pop = $state<{ left: number; top: number } | null>(null);
+  // Where the popover would like to be (beside the event's day, level with it); `pop` is that, kept inside the
+  // window. Its height is watched, since the invitees and emails arrive after it opens and it grows.
+  let want = $state<{ left: number; top: number } | null>(null);
   let popEl = $state<HTMLElement | null>(null);
+  let popHeight = $state(0);
+  let winW = $state(window.innerWidth), winH = $state(window.innerHeight);
   const POP_W = 300;
+  const pop = $derived(want ? {
+    left: Math.max(8, Math.min(want.left, winW - POP_W - 8)),
+    top: Math.max(8, Math.min(want.top, winH - popHeight - 8)),
+  } : null);
+  $effect(() => {
+    const el = popEl;
+    if (!el) return;
+    popHeight = el.offsetHeight;
+    const watch = new ResizeObserver(() => { popHeight = el.offsetHeight; });
+    watch.observe(el);
+    return () => watch.disconnect();
+  });
   function place(target: Element) {
     const rect = target.getBoundingClientRect();
     // Beside the whole day (not the event), so it doesn't cover a meeting next to it in the same day.
     const day = (target.closest(".day-col, .all-day, .m-cell") || target).getBoundingClientRect();
     const left = day.right + 6 + POP_W <= window.innerWidth - 8 ? day.right + 6 : Math.max(8, day.left - 6 - POP_W);
-    pop = { left, top: Math.max(8, rect.top - 12) };
+    want = { left, top: rect.top - 12 };
   }
-  // Keep the popover inside the window once its height is known.
-  $effect(() => {
-    if (!popEl || !pop) return;
-    const height = popEl.offsetHeight;
-    const top = Math.max(8, Math.min(pop.top, window.innerHeight - height - 8));
-    if (top !== pop.top) pop = { ...pop, top };
-  });
   function open(event: CalendarEvent, target: Element) {
+    if (dragged) return;
     if (calendar.selected === eventKey(event)) return close();
     calendar.select(event);
     if (calendar.mode !== "day") place(target);
   }
-  function close() { calendar.select(null); pop = null; }
+  function close() { calendar.select(null); want = null; }
   /** An event found by search: go to its day, then open it. */
   async function reveal(event: CalendarEvent) {
     search = ""; results = [];
@@ -122,10 +132,10 @@
     const shownEvent = calendar.events.find((e) => eventKey(e) === eventKey(event)) || event;
     const el = document.querySelector(`.calendar [data-key="${CSS.escape(eventKey(event))}"]`);
     calendar.select(shownEvent);
-    if (calendar.mode !== "day") { if (el) place(el); else pop = { left: Math.max(8, window.innerWidth / 2 - POP_W / 2), top: 120 }; }
+    if (calendar.mode !== "day") { if (el) place(el); else want = { left: Math.max(8, window.innerWidth / 2 - POP_W / 2), top: 120 }; }
     (el as HTMLElement | null)?.scrollIntoView?.({ block: "center" });
   }
-  $effect(() => { if (!calendar.selected) pop = null; });
+  $effect(() => { if (!calendar.selected) want = null; });
 
   function outside(e: PointerEvent) {
     const target = e.target as Element;
@@ -133,6 +143,96 @@
     if (popEl?.contains(target) || target.closest?.(".ev, .m-ev")) return;
     close();
   }
+
+  // ---- Changing the user's own events: double-click to edit, drag to move, drag the bottom edge to resize ----
+  /** The user's own event on a calendar Ember can change (not someone else's meeting, a shared or read-only one). */
+  const mine = (e: CalendarEvent) => e.response === "organizer" && !e.cancelled && !e.readOnly && !e.shared && !e.busyOnly;
+  async function details(event: CalendarEvent) {
+    await calendar.loadDetails(event);
+    const source = calendar.details[eventKey(event)];
+    if (!source || "error" in source) { store.toast({ text: `Couldn't read “${eventTitle(event)}”${source && "error" in source ? `: ${source.error}` : ""}`, kind: "error" }); return null; }
+    return source;
+  }
+  async function editEvent(event: CalendarEvent) {
+    if (!mine(event)) return;
+    const source = await details(event);
+    if (!source) return;
+    close();
+    void calendar.openEditor(draftFromEvent(source, store.me));
+  }
+  /** A new time for an event. With invitees, the editor opens with it, so the update is sent only on purpose. */
+  async function reschedule(event: CalendarEvent, start: number, end: number, undo = true) {
+    const source = await details(event);
+    if (!source) return;
+    const draft = draftFromEvent(source, store.me);
+    const a = new Date(start), z = new Date(end);
+    Object.assign(draft, { startDate: ymd(a), startTime: hm(a), endDate: ymd(z), endTime: hm(z) });
+    close();
+    if (draft.invitees.length) { void calendar.openEditor(draft); return; }
+    // Shown at the new time at once; the calendar's next read confirms it (or puts it back).
+    const before = { start: event.start, end: event.end };
+    const key = eventKey(event);
+    calendar.events = calendar.events.map((e) => eventKey(e) === key ? { ...e, start: a.toISOString(), end: z.toISOString() } : e);
+    const result = await calendar.save(draft);
+    if (!result.ok) {
+      calendar.events = calendar.events.map((e) => eventKey(e) === key ? { ...e, ...before } : e);
+      if (result.message) store.toast({ text: `Couldn't move “${eventTitle(event)}”: ${result.message}`, kind: "error" });
+      return;
+    }
+    const day = sameDay(start, Date.now()) ? "" : `${a.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}, `;
+    store.toast({
+      text: ms(before.start) === start ? `“${eventTitle(event)}” is now ${shortTime(start)}–${shortTime(end)}` : `Moved “${eventTitle(event)}” to ${day}${shortTime(start)}–${shortTime(end)}`, kind: "success",
+      action: undo ? { label: "Undo", run: () => void reschedule({ ...event, start: a.toISOString(), end: z.toISOString() }, ms(before.start), ms(before.end), false) } : undefined,
+    });
+  }
+
+  const SNAP_MIN = 15;
+  /** The event being dragged: how far (minutes) and how many days it has moved, or how much longer it is. */
+  let drag = $state<{ key: string; kind: "move" | "resize"; minutes: number; days: number; colWidth: number } | null>(null);
+  let dragFrom: { event: CalendarEvent; x: number; y: number; kind: "move" | "resize"; col: number; cols: DOMRect[] } | null = null;
+  let dragged = false; // a drag just ended: the click that follows it doesn't open the popover
+  const draggable = (e: CalendarEvent) => mine(e) && !e.allDay && sameDay(ms(e.start), ms(e.end) - 1) && !calendar.saving;
+  function dragStart(ev: PointerEvent, event: CalendarEvent, col: number) {
+    if (ev.button !== 0 || !draggable(event)) return;
+    const el = ev.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const cols = [...(el.closest(".grid-body")?.querySelectorAll(".day-col") || [])].map((c) => c.getBoundingClientRect());
+    dragFrom = { event, x: ev.clientX, y: ev.clientY, kind: ev.clientY >= rect.bottom - 7 ? "resize" : "move", col, cols };
+    try { el.setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+  }
+  function dragMove(ev: PointerEvent) {
+    const from = dragFrom;
+    if (!from) return;
+    if (!drag && Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 5) return;
+    const step = (SNAP_MIN / 60) * HOUR_PX;
+    let minutes = Math.round((ev.clientY - from.y) / step) * SNAP_MIN;
+    const start = ms(from.event.start), end = ms(from.event.end);
+    const dayStart = startOfDay(new Date(start)).getTime();
+    let days = 0;
+    if (from.kind === "move") {
+      const over = from.cols.findIndex((r) => ev.clientX >= r.left && ev.clientX < r.right);
+      days = over < 0 ? (drag?.days ?? 0) : over - from.col;
+      // Kept within its day: from midnight to the end of the day.
+      minutes = Math.max(minutes, -Math.floor((start - dayStart) / 60000));
+      minutes = Math.min(minutes, Math.floor((dayStart + 86400000 - end) / 60000));
+    } else {
+      minutes = Math.max(minutes, SNAP_MIN - Math.round((end - start) / 60000));
+      minutes = Math.min(minutes, Math.floor((dayStart + 86400000 - end) / 60000));
+    }
+    drag = { key: eventKey(from.event), kind: from.kind, minutes, days, colWidth: from.cols[0]?.width || 0 };
+  }
+  function dragEnd() {
+    const from = dragFrom, done = drag;
+    dragFrom = null; drag = null;
+    if (!from || !done) return;
+    dragged = true; setTimeout(() => { dragged = false; }, 0);
+    if (!done.minutes && !done.days) return;
+    const shift = (t: number) => { const d = new Date(t); d.setDate(d.getDate() + done.days); return d.getTime() + done.minutes * 60000; };
+    const start = ms(from.event.start), end = ms(from.event.end);
+    if (done.kind === "move") void reschedule(from.event, shift(start), shift(end));
+    else void reschedule(from.event, start, end + done.minutes * 60000);
+  }
+  function dragCancel() { dragFrom = null; drag = null; }
 
   // ---- Search ----
   let search = $state("");
@@ -201,7 +301,7 @@
   const dayLabel = (d: Date) => d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 </script>
 
-<svelte:window onkeydown={onKey} onpointerdown={outside} />
+<svelte:window onkeydown={onKey} onpointerdown={outside} bind:innerWidth={winW} bind:innerHeight={winH} />
 
 <section class="calendar" aria-label="Calendar">
   <div class="toolbar">
@@ -276,7 +376,7 @@
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div class="all-day" class:weekend={c.weekend} ondblclick={(e) => dayAt(e, c.date)}>
               {#each c.allDay as e (eventKey(e))}
-                <button class="ev flat {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} data-key={eventKey(e)} style:--c={colorOf(e)} aria-label={label(e)} onclick={(ev) => open(e, ev.currentTarget)}>{eventTitle(e)}</button>
+                <button class="ev flat {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} data-key={eventKey(e)} style:--c={colorOf(e)} aria-label={label(e)} onclick={(ev) => open(e, ev.currentTarget)} ondblclick={(ev) => { ev.stopPropagation(); void editEvent(e); }}>{eventTitle(e)}</button>
               {/each}
             </div>
           {/each}
@@ -286,16 +386,23 @@
             {#each hours as h (h.h)}<span style:top="{h.h * HOUR_PX}px">{h.label}</span>{/each}
             {#if showsToday}<span class="now-label" style:top="{nowTop}px">{nowLabel}</span>{/if}
           </div>
-          {#each columns as c (c.date.getTime())}
+          {#each columns as c, ci (c.date.getTime())}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div class="day-col" class:weekend={c.weekend} style:--hour="{HOUR_PX}px" ondblclick={(e) => slotAt(e, c.date)}>
               {#each c.placed as p (eventKey(p.event))}
                 {@const e = p.event}
-                <button class="ev {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} data-key={eventKey(e)} style:--c={colorOf(e)}
-                  style:top="{p.top + 1}px" style:height="{p.height - 2}px" style:left="calc({(p.lane * 100) / p.lanes}% + 1px)" style:width="calc({100 / p.lanes}% - 3px)"
-                  aria-label={label(e)} onclick={(ev) => open(e, ev.currentTarget)}>
+                {@const moving = drag?.key === eventKey(e) ? drag : null}
+                {@const grow = moving?.kind === "resize" ? (moving.minutes / 60) * HOUR_PX : 0}
+                {@const shift = moving?.kind === "move" ? (moving.minutes / 60) * HOUR_PX : 0}
+                <button class="ev {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} class:editable={draggable(e)} class:dragging={!!moving} data-key={eventKey(e)} style:--c={colorOf(e)}
+                  style:top="{p.top + 1 + shift}px" style:height="{p.height - 2 + grow}px" style:left="calc({(p.lane * 100) / p.lanes}% + 1px)" style:width="calc({100 / p.lanes}% - 3px)"
+                  style:transform={moving?.days ? `translateX(${moving.days * moving.colWidth}px)` : undefined}
+                  aria-label={label(e)} title={draggable(e) ? "Double-click to edit · drag to move · drag the bottom edge to change the length" : undefined}
+                  onclick={(ev) => open(e, ev.currentTarget)} ondblclick={(ev) => { ev.stopPropagation(); void editEvent(e); }}
+                  onpointerdown={(ev) => dragStart(ev, e, ci)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragCancel}>
                   <span class="ev-title">{eventTitle(e)}</span>
-                  {#if p.height >= 38}<span class="ev-sub">{shortTime(ms(e.start))}</span>{/if}
+                  {#if moving}<span class="ev-sub">{shortTime(ms(e.start) + (moving.kind === "move" ? moving.minutes * 60000 : 0))}–{shortTime(ms(e.end) + moving.minutes * 60000)}</span>
+                  {:else if p.height >= 38}<span class="ev-sub">{shortTime(ms(e.start))}</span>{/if}
                   {#if p.height >= 70 && e.location}<span class="ev-sub ellipsis">{e.location}</span>{/if}
                 </button>
               {/each}
@@ -314,7 +421,7 @@
             <button class="m-num" class:today={isToday} aria-label={dayLabel(cell.date)} title="Show this day" onclick={() => setMode("day", cell.date.getTime())}>{cell.date.getDate() === 1 ? cell.date.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : cell.date.getDate()}</button>
             {#each cell.events.slice(0, cell.events.length > MONTH_ROWS + 1 ? MONTH_ROWS : MONTH_ROWS + 1) as e (eventKey(e))}
               {@const bar = inAllDayRow(e)}
-              <button class="m-ev {eventLook(e)}" class:ev={bar} class:flat={bar} class:selected={calendar.selected === eventKey(e)} data-key={eventKey(e)} style:--c={colorOf(e)} aria-label={label(e)} onclick={(ev) => open(e, ev.currentTarget)}>
+              <button class="m-ev {eventLook(e)}" class:ev={bar} class:flat={bar} class:selected={calendar.selected === eventKey(e)} data-key={eventKey(e)} style:--c={colorOf(e)} aria-label={label(e)} onclick={(ev) => open(e, ev.currentTarget)} ondblclick={(ev) => { ev.stopPropagation(); void editEvent(e); }}>
                 {#if !bar}<span class="m-dot"></span>{/if}
                 <span class="m-title">{eventTitle(e)}</span>
                 {#if !bar}<span class="m-time">{shortTime(ms(e.start))}</span>{/if}
@@ -500,6 +607,9 @@
   /* Day panel and popover */
   .day-panel { flex: 0 0 320px; border-left: 1px solid var(--line); padding: 16px 18px; overflow-y: auto; }
   .pick { margin: 0; color: var(--text-3); }
-  .popover { position: fixed; z-index: 40; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--sep-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08); }
-  :global(:root[data-theme="dark"]) .popover { background: #2c2c2e; }
+  .ev.editable { touch-action: none; }
+  .ev.editable::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+  .ev.dragging { z-index: 6; opacity: 0.88; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); cursor: grabbing; transition: none; }
+  .popover { --pop-bg: var(--surface); position: fixed; z-index: 40; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--sep-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08); }
+  :global(:root[data-theme="dark"]) .popover { --pop-bg: #2c2c2e; background: #2c2c2e; }
 </style>

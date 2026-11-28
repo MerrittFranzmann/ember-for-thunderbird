@@ -63,7 +63,11 @@
   const series = $derived(details?.type === "Occurrence" || details?.type === "Exception");
   let confirming = $state(false);
   let note = $state("");
-  $effect(() => { key; confirming = false; note = ""; });
+  // A long invitee list shows its first few until opened, so the card stays short enough to see whole.
+  const PEOPLE_SHOWN = 6;
+  let allPeople = $state(false);
+  const shownPeople = $derived(allPeople || panel || people.length <= PEOPLE_SHOWN + 1 ? people : people.slice(0, PEOPLE_SHOWN));
+  $effect(() => { key; confirming = false; note = ""; allPeople = false; });
   async function edit() {
     if (!details) await calendar.loadDetails(event);
     const source = calendar.details[key];
@@ -114,7 +118,7 @@
     <div class="block">
       <h3>Invitees{#if organizer}<span> · you organized this</span>{/if}</h3>
       <ul class="people">
-        {#each people as p (p.email)}
+        {#each shownPeople as p (p.email)}
           <li title={p.email}>
             <span class="mark {p.answer?.tone || 'unknown'}" aria-hidden="true">{p.answer?.mark || ""}</span>
             <span class="name">{p.name}</span>
@@ -122,6 +126,9 @@
           </li>
         {/each}
       </ul>
+      {#if shownPeople.length < people.length}
+        <button class="more-people" onclick={() => (allPeople = true)}>Show all {people.length}</button>
+      {/if}
     </div>
   {/if}
   {#if emails.length || brief}
@@ -141,6 +148,8 @@
   {/if}
   {#if notes}<p class="notes">{notes}</p>{/if}
   {#if loaded && "error" in loaded}<p class="sub small">Couldn't read the details: {loaded.error}</p>{/if}
+  <!-- The answers and Edit / Delete stay at the bottom of the popover, in view however long the card is. -->
+  {#if invitation || (event.cancelled && !organizer && !event.shared) || own}<div class="foot">
   {#if invitation}
     <div class="rule"></div>
     <div class="answers" role="group" aria-label="Your answer">
@@ -178,6 +187,7 @@
       </div>
     {/if}
   {/if}
+  </div>{/if}
 </div>
 
 <style>
@@ -223,6 +233,10 @@
   .answers button[aria-pressed="true"] { background: #0a84ff; border-color: #0a84ff; color: #fff; }
   .answers button:disabled { opacity: 0.6; cursor: default; }
   .actions { display: flex; gap: 6px; }
+  .foot { display: flex; flex-direction: column; gap: 10px; }
+  .card:not(.panel) .foot { position: sticky; bottom: -12px; z-index: 1; margin: 0 -16px -12px; padding: 0 16px 12px; background: var(--pop-bg, var(--surface)); }
+  .more-people { margin-top: 2px; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .more-people:hover { text-decoration: underline; }
   .actions.wrap { flex-wrap: wrap; }
   .actions button { flex: 1; height: 26px; padding: 0 8px; border: 1px solid var(--sep-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; }
   .actions button:hover:not(:disabled) { background: var(--hover); }

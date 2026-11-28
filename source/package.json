@@ -1,6 +1,6 @@
 {
   "name": "thunderbird-spark",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "description": "Ember: a fast, focused mail app inside Thunderbird for Mac. Thunderbird keeps accounts, sync, storage and sending; Ember replaces the day-to-day interface.",
   "license": "MIT",

@@ -122,6 +122,8 @@
         </label>
       </div>
       <div class="rule"></div>
+      <!-- The title above and Cancel / Save below stay in view; this middle scrolls when the window is short. -->
+      <div class="scroll">
       <div class="rows">
         <span class="k">all-day:</span>
         <span><input type="checkbox" checked={d.allDay} onchange={toggleAllDay} aria-label="All day" /></span>
@@ -181,6 +183,7 @@
         </section>
       {/if}
       <textarea class="notes" bind:value={d.notes} rows="3" placeholder="Add Notes or URL" aria-label="Notes"></textarea>
+      </div>
       {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
       <div class="foot">
         <span class="hint">{sends ? `${calendar.isThunderbird(d.accountId) ? "Sent" : "Exchange sends this"} from ${fromAddress || "your address"}.` : d.mode === "new" ? "Nobody is invited." : ""}</span>
@@ -192,14 +195,16 @@
 </div>
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.32); display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; overflow-y: auto; }
-  .sheet { width: 500px; max-width: 100%; display: flex; flex-direction: column; gap: 8px; outline: none; font-size: 13px; color: var(--text); }
+  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.32); display: flex; align-items: flex-start; justify-content: center; padding: clamp(12px, 8vh, 72px) 16px 12px; box-sizing: border-box; overflow-y: auto; }
+  .sheet { width: 500px; max-width: 100%; max-height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 8px; outline: none; font-size: 13px; color: var(--text); }
   .quick { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 12px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--sep-strong), var(--shadow); color: #0a84ff; }
   .quick input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; outline: none; }
   .fill { height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
   .from { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .from :global(svg) { flex: none; }
-  .card { border-radius: 12px; background: var(--surface); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--sep-strong); overflow: hidden; }
+  .card { border-radius: 12px; background: var(--surface); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--sep-strong); overflow: hidden; display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
+  .head, .rule, .foot, .problem { flex: none; }
+  .scroll { flex: 1 1 auto; min-height: 96px; overflow-y: auto; overscroll-behavior: contain; }
   :global(:root[data-theme="dark"]) .card, :global(:root[data-theme="dark"]) .quick { background: #2c2c2e; }
   .head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 18px 10px; }
   .titles { flex: 1; min-width: 0; }
