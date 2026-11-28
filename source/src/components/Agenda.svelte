@@ -57,6 +57,11 @@
     const live = !r.event.allDay && agenda.now >= r.when.start && agenda.now < r.when.end;
     return live ? "Now" : r.event.allDay ? "All day" : new Date(r.when.start).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "");
   };
+  /** "am" / "pm" after the time (small), so 6:00 in the morning and 6:00 in the evening read differently; a 24-hour clock has none. */
+  const meridiem = (r: ReturnType<typeof row>) => {
+    if (r.event.allDay || (agenda.now >= r.when.start && agenda.now < r.when.end)) return "";
+    return (/([AP]M)$/i.exec(new Date(r.when.start).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }))?.[1] || "").toLowerCase();
+  };
   function open(r: ReturnType<typeof row>) {
     if (r.brief) return store.openBrief(r.brief);
     store.searchText = r.event.subject;
@@ -83,7 +88,7 @@
   {@const soon = r.brief ? soonMail.get(r.brief.key) : undefined}
   <li class:live>
     <button class="meeting" title={r.brief ? `${r.event.subject} · ${timeRange(r.when.start, r.when.end, r.event.allDay)} — recent email with ${r.brief.people.length === 1 ? r.brief.people[0].name : `the ${r.brief.people.length} people in it`}${soon ? ` (${soon.summary})` : ""}` : `${r.event.subject}${r.event.location ? ` · ${r.event.location}` : ""} — find the invitation`} onclick={() => open(r)}>
-      <span class="time">{time(r)}</span>
+      <span class="time">{time(r)}{#if meridiem(r)}<small>{meridiem(r)}</small>{/if}</span>
       <span class="title">{r.event.subject || "(no title)"}</span>
       {#if soon?.count}<span class="mail-count" aria-label="{soon.count} recent emails"><Icon name="mail" size={12} />{soon.count > 99 ? "99+" : soon.count}</span>{/if}
       {#if r.mark}<span class="mark {r.mark.tone}" title={r.mark.label} aria-label={r.mark.label}>{r.mark.mark}</span>{/if}
@@ -138,7 +143,8 @@
   li:hover { background: var(--hover); }
   li.live { background: var(--accent-soft); }
   .meeting { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 10px; text-align: left; color: var(--text-2); }
-  .time { flex: none; width: 42px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-3); }
+  .time small { margin-left: 1px; font-size: 9.5px; letter-spacing: 0.02em; }
+  .time { flex: none; width: 50px; white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-3); }
   li.live .time { color: var(--accent-text); font-weight: 600; }
   .title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li.live .title { color: var(--text); }

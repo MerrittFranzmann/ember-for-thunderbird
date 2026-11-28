@@ -52,6 +52,8 @@ CALENDARS = {
                              f'RRULE:FREQ=WEEKLY\r\nORGANIZER;CN=Alex Morgan:mailto:{ME}\r\n'
                              'ATTENDEE;CN=Priya Nair;PARTSTAT=ACCEPTED:mailto:priya@ember.test\r\n'),
         'birthday.ics': vevent('bday-1@ember.test', "Sam's birthday", day(0), day(1), 'TRANSP:TRANSPARENT\r\n'),
+        # Late in the day: a range of local days must include it (1.0.11: ranges were off by the UTC offset).
+        'late.ics': vevent('late-1@ember.test', 'Late show', at(22, 30), at(23, 30)),
     }),
     'holidays': dict(name='Holidays', color='#0b8043', read_only=True, events={
         'founders.ics': vevent('founders-1@ember.test', 'Founders Day', day(0), day(1), 'TRANSP:TRANSPARENT\r\n'),
@@ -120,7 +122,7 @@ return { text: offer ? offer.querySelector('.two-lines').innerText.replace(/\s+/
 await until(() => row('Alex (Personal)'), 30000);
 await until(() => evByTitle('Coffee with Sam') && evByTitle('Founders Day'), 30000); await sleep(400);
 const toast = [...document.querySelectorAll('.toast')].map((t) => t.textContent.trim()).join(' | ');
-return { heads: heads(), rows: rows(), offerGone: ![...side().querySelectorAll('.connect')].length, toast,
+return { heads: heads(), rows: rows(), offerGone: ![...side().querySelectorAll('.connect')].some((o) => o.textContent.includes('alex@gmail.com')), toast,
   coffee: evByTitle('Coffee with Sam')?.getAttribute('aria-label'), weekly: !!evByTitle('Weekly sync'), birthday: !!evByTitle("Sam's birthday")?.closest('.all-day'),
   founders: !!evByTitle('Founders Day')?.closest('.all-day'), color: getComputedStyle(evByTitle('Coffee with Sam')).getPropertyValue('--c').trim(),
   list: await messenger.sparkCalendar.calendars() };''')
@@ -231,7 +233,7 @@ return { hidden: !evByTitle('Founders Day'), row: rows().find((r) => r.name === 
         'read_only_refused': 'can\'t add events' in ed['refused'],
         'availability': avail.get(ME, {}).get('busy') and all('Free' not in b for b in avail[ME]['busy']) and any(b.endswith('Busy') for b in avail[ME]['busy'])
             and len(avail.get('priya@ember.test', {}).get('busy', [])) == 1 and bool(avail.get('nobody@ember.test', {}).get('error')),
-        'agenda': 'Design review' in ag['subjects'] and 'Founders Day' in ag['subjects'] and 'Coffee with Sam' not in ag['subjects'] and not ag['errors'] and ag['bodies'] == ['Bring the demo'],
+        'agenda': 'Design review' in ag['subjects'] and 'Founders Day' in ag['subjects'] and 'Late show' in ag['subjects'] and 'Coffee with Sam' not in ag['subjects'] and not ag['errors'] and ag['bodies'] == ['Bring the demo'],
         'find_invitation': bool(ag['found']) and ag['found']['response'] == 'accept' and ag['none'] is None,
         'hide': h['hidden'] and h['row'] == {'name': 'Holidays', 'on': False} and any(k.startswith('cal:') for k in h['saved'] or []),
         'only_mock_requests': len(mock.requests) > 0,

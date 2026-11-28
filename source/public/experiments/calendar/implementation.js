@@ -824,8 +824,16 @@ var sparkCalendar = class extends ExtensionCommon.ExtensionAPI {
       return event;
     }
     /** Every shown Thunderbird calendar's events between two instants (each occurrence of a series on its own). */
+    /** The instant (ms or an ISO string) as a calIDateTime in `timezone`. (cal.dtz.jsDateToDateTime(date, zone)
+     *  keeps the JS date's local clock reading and labels it with the zone: local midnight became midnight UTC, so
+     *  every range was off by the UTC offset and an evening's events fell outside it.) */
+    function tbInstant(value, timezone = cal.dtz.UTC) {
+      const dt = cal.createDateTime();
+      dt.nativeTime = new Date(value).getTime() * 1000;
+      return dt.getInTimezone(timezone);
+    }
     async function tbView(start, end, details) {
-      const from = cal.dtz.jsDateToDateTime(new Date(start), cal.dtz.UTC), to = cal.dtz.jsDateToDateTime(new Date(end), cal.dtz.UTC);
+      const from = tbInstant(start), to = tbInstant(end);
       const calendars = await tbCalendars();
       const events = [], errors = [];
       await Promise.all(calendars.map(async (c) => {
@@ -860,7 +868,7 @@ var sparkCalendar = class extends ExtensionCommon.ExtensionAPI {
         day.isDate = true;
         return day;
       }
-      return cal.dtz.jsDateToDateTime(at, cal.dtz.defaultTimezone);
+      return tbInstant(at.getTime(), cal.dtz.defaultTimezone);
     }
     /** Write the editor's fields (only those given) onto a Thunderbird event. */
     function tbApply(item, event, c, isNew) {
@@ -1009,7 +1017,7 @@ var sparkCalendar = class extends ExtensionCommon.ExtensionAPI {
         const intervals = [];
         const timer = setTimeout(() => resolve(null), 15000);
         try {
-          cal.freeBusyService.getFreeBusyIntervals(cal.email.prependMailTo(email), cal.dtz.jsDateToDateTime(new Date(start), cal.dtz.UTC), cal.dtz.jsDateToDateTime(new Date(end), cal.dtz.UTC), Ci.calIFreeBusyInterval.BUSY_ALL, {
+          cal.freeBusyService.getFreeBusyIntervals(cal.email.prependMailTo(email), tbInstant(start), tbInstant(end), Ci.calIFreeBusyInterval.BUSY_ALL, {
             // Called once per calendar server that answers (others give nothing), the last time no longer pending.
             onResult(request, result) {
               if (result && result.length) intervals.push(...result);

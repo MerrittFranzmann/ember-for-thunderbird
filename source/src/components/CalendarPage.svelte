@@ -252,6 +252,33 @@
   }
   function dragCancel() { stopEdge(); dragFrom = null; drag = null; }
 
+  // ---- Drag on an empty part of a day: a new event for that time ----
+  let making = $state<{ col: number; from: number; to: number } | null>(null); // minutes from midnight
+  let makeFrom: { col: number; date: Date; y0: number; top: number; minute: number } | null = null;
+  function makeStart(ev: PointerEvent, date: Date, col: number) {
+    if (ev.button !== 0 || (ev.target as Element).closest?.(".ev") || !calendar.canCreate || !calendar.calendars.length) return;
+    const box = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    const minute = Math.max(0, Math.min(24 * 60 - SNAP_MIN, Math.floor(((ev.clientY - box.top) / HOUR_PX) * 60 / SNAP_MIN) * SNAP_MIN));
+    makeFrom = { col, date, y0: ev.clientY, top: box.top, minute };
+    try { (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+  }
+  function makeMove(ev: PointerEvent) {
+    const from = makeFrom;
+    if (!from || (!making && Math.abs(ev.clientY - from.y0) < 6)) return;
+    const at = Math.max(0, Math.min(24 * 60, Math.round(((ev.clientY - from.top) / HOUR_PX) * 60 / SNAP_MIN) * SNAP_MIN));
+    const a = Math.min(from.minute, at), z = Math.max(from.minute + (at > from.minute ? 0 : SNAP_MIN), at);
+    making = { col: from.col, from: a, to: Math.max(z, a + SNAP_MIN) };
+  }
+  function makeEnd() {
+    const from = makeFrom, done = making;
+    makeFrom = null; making = null;
+    if (!from || !done) return;
+    dragged = true; setTimeout(() => { dragged = false; }, 0);
+    const day = startOfDay(from.date);
+    const at = (minutes: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes).getTime();
+    newEvent(at(done.from), at(done.to));
+  }
+
   // ---- Search ----
   let search = $state("");
   let results = $state<{ event: CalendarEvent; count: number }[]>([]);
@@ -406,7 +433,13 @@
           </div>
           {#each columns as c, ci (c.date.getTime())}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="day-col" class:weekend={c.weekend} style:--hour="{HOUR_PX}px" ondblclick={(e) => slotAt(e, c.date)}>
+            <div class="day-col" class:weekend={c.weekend} style:--hour="{HOUR_PX}px" ondblclick={(e) => slotAt(e, c.date)}
+              onpointerdown={(e) => makeStart(e, c.date, ci)} onpointermove={makeMove} onpointerup={makeEnd} onpointercancel={() => { makeFrom = null; making = null; }}>
+              {#if making?.col === ci}
+                <div class="making" style:top="{(making.from / 60) * HOUR_PX}px" style:height="{((making.to - making.from) / 60) * HOUR_PX}px" aria-hidden="true">
+                  <b>New event</b><span>{shortTime(startOfDay(c.date).getTime() + making.from * 60000)}–{shortTime(startOfDay(c.date).getTime() + making.to * 60000)}</span>
+                </div>
+              {/if}
               {#each c.placed as p (eventKey(p.event))}
                 {@const e = p.event}
                 {@const moving = drag?.key === eventKey(e) ? drag : null}
@@ -601,7 +634,7 @@
   /* Month */
   .month { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto repeat(var(--weeks), minmax(96px, 1fr)); border-top: 1px solid var(--line); overflow-y: auto; }
   .m-dow { padding: 6px 8px; font-size: 12px; text-align: right; color: var(--text-2); }
-  .m-cell { padding: 4px 4px 6px; border-top: 1px solid var(--line); border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow: hidden; }
+  .m-cell { container-type: inline-size; padding: 4px 4px 6px; border-top: 1px solid var(--line); border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow: hidden; }
   .m-cell.out .m-num { color: var(--text-3); }
   .m-num { align-self: flex-end; min-width: 22px; height: 22px; padding: 0 5px; border: 0; border-radius: 11px; background: transparent; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
   .m-num:hover { background: var(--hover); }
@@ -615,6 +648,8 @@
   .m-dot { flex: none; width: 7px; height: 7px; border-radius: 4px; background: var(--c); }
   .m-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .m-time { flex: none; color: var(--text-3); font-size: 11px; }
+  /* A narrow day keeps the title and drops the time (it shows in the event's card). */
+  @container (max-width: 150px) { .m-time { display: none; } }
   .m-more { align-self: flex-start; border: 0; background: transparent; padding: 0 4px; font-size: 11px; color: var(--text-3); cursor: pointer; }
   .m-more:hover { color: var(--text); text-decoration: underline; }
 
@@ -634,6 +669,9 @@
   .pick { margin: 0; color: var(--text-3); }
   .ev.editable { touch-action: none; }
   .ev.editable:not(.short)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+  .making { position: absolute; left: 1px; right: 3px; z-index: 5; box-sizing: border-box; padding: 3px 6px 3px 8px; border-radius: 5px; overflow: hidden; pointer-events: none;
+    display: flex; flex-direction: column; font-size: 11px; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+  .making b { font-size: 11.5px; }
   .ev.dragging { z-index: 6; opacity: 0.88; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); cursor: grabbing; transition: none; }
   .popover { --pop-bg: var(--surface); position: fixed; z-index: 40; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--sep-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08); }
   :global(:root[data-theme="dark"]) .popover { --pop-bg: #2c2c2e; background: #2c2c2e; }

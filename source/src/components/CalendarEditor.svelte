@@ -90,15 +90,24 @@
   }
   const isChosen = (slot: { start: number }) => localTime(d.startDate, d.startTime) === slot.start;
 
+  // Something typed (or changed) isn't thrown away by a stray click or Escape: the editor asks first.
+  const dirty = $derived(d.mode === "new" ? !!(d.title.trim() || d.location.trim() || d.notes.trim() || d.invitees.length || quick.trim()) : !!Object.keys(pending?.changes || {}).length);
+  let discarding = $state(false);
   function close() { if (!calendar.saving) calendar.editor = null; }
+  function leave() {
+    if (calendar.saving) return;
+    // Only the Discard button throws changes away; another click outside just keeps asking.
+    if (dirty) { discarding = true; return; }
+    close();
+  }
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (discarding) discarding = false; else leave(); }
     else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save(); }
   }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="scrim" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="scrim" onpointerdown={(e) => { if (e.target === e.currentTarget) leave(); }}>
   <div class="sheet" bind:this={dialog} role="dialog" aria-modal="true" aria-label={d.mode === "new" ? "New event" : `Edit ${d.title || "event"}`} tabindex="-1" onkeydown={onKey}>
     {#if d.mode === "new"}
       <label class="quick">
@@ -185,6 +194,13 @@
       <textarea class="notes" bind:value={d.notes} rows="3" placeholder="Add Notes or URL" aria-label="Notes"></textarea>
       </div>
       {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
+      {#if discarding}
+        <div class="discard" role="alertdialog" aria-label="Discard changes">
+          <span>{d.mode === "new" ? "Discard this event?" : "Discard your changes?"}</span>
+          <button class="btn" onclick={() => (discarding = false)}>Keep editing</button>
+          <button class="btn danger" onclick={close}>Discard</button>
+        </div>
+      {/if}
       <div class="foot">
         <span class="hint">{sends ? `${calendar.isThunderbird(d.accountId) ? "Sent" : "Exchange sends this"} from ${fromAddress || "your address"}.` : d.mode === "new" ? "Nobody is invited." : ""}</span>
         <button class="btn" onclick={close} disabled={calendar.saving}>Cancel</button>
@@ -248,6 +264,9 @@
   .slot[aria-pressed="true"] { background: #0a84ff; box-shadow: none; color: #fff; }
   .mini-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--sep-strong); border-top-color: var(--text-3); animation: spin 0.8s linear infinite; align-self: center; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .discard { flex: none; display: flex; align-items: center; gap: 8px; margin: 0 18px 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--cal-red, #e5484d) 10%, transparent); font-weight: 600; }
+  .discard span { flex: 1; }
+  .discard .danger { color: var(--cal-red, #e5484d); }
   .problem { margin: 0 18px 8px; color: var(--danger); font-size: 12.5px; }
   .foot { display: flex; align-items: center; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--sep); }
   .hint { flex: 1; font-size: 11.5px; color: var(--text-3); }
