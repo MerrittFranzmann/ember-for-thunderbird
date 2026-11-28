@@ -48,4 +48,20 @@ describe("quick add", () => {
     expect(quickAdd("Mom's birthday Friday", MON)).toMatchObject({ title: "Mom's birthday", allDay: true, start: t(20, 0) });
     expect(quickAdd("Think", MON)).toMatchObject({ title: "Think", start: t(16, 12), end: t(16, 13), allDay: false });
   });
+  it("reads a time range before the day, with am/pm only on its end", () => {
+    expect(quickAdd("Review 2-3pm Friday", MON)).toMatchObject({ title: "Review", start: t(20, 14), end: t(20, 15), allDay: false });
+    expect(quickAdd("Coffee 9:30-10am", MON)).toMatchObject({ title: "Coffee", start: t(17, 9, 30), end: t(17, 10) });
+    expect(quickAdd("Sync 3pm tomorrow", MON)).toMatchObject({ title: "Sync", start: t(17, 15), end: t(17, 16) });
+  });
+  it("reads a run of days as one all-day event", () => {
+    expect(quickAdd("Team offsite Dec 10-12", MON)).toMatchObject({ title: "Team offsite", allDay: true, start: t(10, 0, 0, 11), end: t(13, 0, 0, 11) });
+    expect(quickAdd("Trip Nov 30 to Dec 2", MON)).toMatchObject({ title: "Trip", allDay: true, start: t(30, 0), end: t(3, 0, 0, 11) });
+    expect(quickAdd("Workshop Dec 10 2-4pm", MON)).toMatchObject({ title: "Workshop", allDay: false, start: t(10, 14, 0, 11), end: t(10, 16, 0, 11) });
+  });
+  it("reads how long it lasts", () => {
+    expect(quickAdd("Call mom tomorrow at noon for 30 minutes", MON)).toMatchObject({ title: "Call mom", start: t(17, 12), end: t(17, 12, 30) });
+    expect(quickAdd("Deep work Thu 9am for 2 hours", MON)).toMatchObject({ title: "Deep work", start: t(19, 9), end: t(19, 11) });
+    expect(quickAdd("Chat with Ada at 4pm for half an hour", MON)).toMatchObject({ title: "Chat with Ada", start: t(16, 16), end: t(16, 16, 30) });
+    expect(quickAdd("Plan for the launch Friday 10am", MON)).toMatchObject({ title: "Plan for the launch" });
+  });
 });

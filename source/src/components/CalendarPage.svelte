@@ -9,7 +9,7 @@
   import { composer } from "../lib/compose.svelte";
   import {
     CALENDAR_MODES, HOUR_PX, calendarOf, eventTitle, addDays, allDayOn, daysOf, eventKey, eventLook, inAllDayRow, miniMonth, monthCells, ms,
-    placeDay, sameDay, searchEvents, shortTime, shownEvents, startOfDay, titleFor, weekdayNames, type CalendarMode,
+    oncePerSeries, placeDay, sameDay, searchEvents, shortTime, shownEvents, startOfDay, titleFor, weekdayNames, type CalendarMode,
   } from "../lib/calendar-grid";
   import type { CalendarEvent } from "../lib/meeting-status";
   import { draftForSlot, draftFromEvent, hm, ymd } from "../lib/calendar-edit";
@@ -189,7 +189,8 @@
   const SNAP_MIN = 15;
   /** The event being dragged: how far (minutes) and how many days it has moved, or how much longer it is. */
   let drag = $state<{ key: string; kind: "move" | "resize"; minutes: number; days: number; colWidth: number } | null>(null);
-  let dragFrom: { event: CalendarEvent; x: number; y: number; kind: "move" | "resize"; col: number; cols: DOMRect[] } | null = null;
+  let dragFrom: { event: CalendarEvent; x: number; y: number; kind: "move" | "resize"; col: number; cols: DOMRect[]; scroll0: number; last: PointerEvent | null } | null = null;
+  let edgeTimer: ReturnType<typeof setInterval> | undefined;
   let dragged = false; // a drag just ended: the click that follows it doesn't open the popover
   const draggable = (e: CalendarEvent) => mine(e) && !e.allDay && sameDay(ms(e.start), ms(e.end) - 1) && !calendar.saving;
   function dragStart(ev: PointerEvent, event: CalendarEvent, col: number) {
@@ -197,15 +198,30 @@
     const el = ev.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const cols = [...(el.closest(".grid-body")?.querySelectorAll(".day-col") || [])].map((c) => c.getBoundingClientRect());
-    dragFrom = { event, x: ev.clientX, y: ev.clientY, kind: ev.clientY >= rect.bottom - 7 ? "resize" : "move", col, cols };
+    dragFrom = { event, x: ev.clientX, y: ev.clientY, kind: rect.height >= 22 && ev.clientY >= rect.bottom - 7 ? "resize" : "move", col, cols, scroll0: scroller?.scrollTop || 0, last: null };
     try { el.setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+  }
+  /** Near the top or bottom of the hours, the grid scrolls (and the event with the pointer), so a drag can reach any time. */
+  function edgeScroll() {
+    const from = dragFrom, view = scroller;
+    if (!from?.last || !view || !drag) return;
+    const box = view.getBoundingClientRect();
+    const top = box.top + 70, edge = 36; // below the sticky day and all-day rows
+    const y = from.last.clientY;
+    const speed = y < top + edge ? -Math.ceil((top + edge - y) / 4) : y > box.bottom - edge ? Math.ceil((y - (box.bottom - edge)) / 4) : 0;
+    if (!speed) return;
+    const before = view.scrollTop;
+    view.scrollTop += speed;
+    if (view.scrollTop !== before) dragMove(from.last);
   }
   function dragMove(ev: PointerEvent) {
     const from = dragFrom;
     if (!from) return;
+    from.last = ev;
     if (!drag && Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 5) return;
+    if (!edgeTimer) edgeTimer = setInterval(edgeScroll, 30);
     const step = (SNAP_MIN / 60) * HOUR_PX;
-    let minutes = Math.round((ev.clientY - from.y) / step) * SNAP_MIN;
+    let minutes = Math.round((ev.clientY - from.y + (scroller?.scrollTop || 0) - from.scroll0) / step) * SNAP_MIN;
     const start = ms(from.event.start), end = ms(from.event.end);
     const dayStart = startOfDay(new Date(start)).getTime();
     let days = 0;
@@ -221,7 +237,9 @@
     }
     drag = { key: eventKey(from.event), kind: from.kind, minutes, days, colWidth: from.cols[0]?.width || 0 };
   }
+  function stopEdge() { clearInterval(edgeTimer); edgeTimer = undefined; }
   function dragEnd() {
+    stopEdge();
     const from = dragFrom, done = drag;
     dragFrom = null; drag = null;
     if (!from || !done) return;
@@ -232,11 +250,11 @@
     if (done.kind === "move") void reschedule(from.event, shift(start), shift(end));
     else void reschedule(from.event, start, end + done.minutes * 60000);
   }
-  function dragCancel() { dragFrom = null; drag = null; }
+  function dragCancel() { stopEdge(); dragFrom = null; drag = null; }
 
   // ---- Search ----
   let search = $state("");
-  let results = $state<CalendarEvent[]>([]);
+  let results = $state<{ event: CalendarEvent; count: number }[]>([]);
   let searching = $state(false);
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   function typed() {
@@ -247,7 +265,7 @@
       searching = true;
       try {
         const pool = shownEvents(await calendar.searchRange(), hidden);
-        if (search.trim() === query) results = searchEvents(pool, query).slice(0, 20);
+        if (search.trim() === query) results = oncePerSeries(searchEvents(pool, query), Date.now()).slice(0, 20);
       } catch (e: any) { store.toast({ text: `Couldn't search your calendar: ${e?.message || e}`, kind: "error" }); }
       finally { searching = false; }
     }, 250);
@@ -318,15 +336,15 @@
     <span class="tb-side end">
       <label class="cal-search">
         <Icon name="search" size={13} />
-        <input type="search" placeholder="Search" aria-label="Search events" autocomplete="off" bind:value={search} oninput={typed} />
+        <input type="search" placeholder="Search" aria-label="Search events" autocomplete="off" bind:value={search} oninput={typed} onkeydown={(e) => { if (e.key === "Enter" && results[0]) { e.preventDefault(); void reveal(results[0].event); } }} />
       </label>
       {#if search.trim()}
         <div class="results" role="listbox" aria-label="Events found">
-          {#each results as e (eventKey(e))}
-            <button role="option" aria-selected="false" onclick={() => reveal(e)}>
+          {#each results as { event: e, count } (eventKey(e))}
+            <button role="option" aria-selected="false" onclick={() => reveal(e)} title={count > 1 ? `Repeats · ${count} found a month either side` : undefined}>
               <span class="dot" style:background={colorOf(e)}></span>
               <span class="r-title">{eventTitle(e)}</span>
-              <span class="r-when">{new Date(ms(e.start)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{e.allDay ? "" : ` · ${shortTime(ms(e.start))}`}</span>
+              <span class="r-when">{new Date(ms(e.start)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{e.allDay ? "" : ` · ${shortTime(ms(e.start))}`}{count > 1 ? " · repeats" : ""}</span>
             </button>
           {:else}
             <p class="r-empty">{searching ? "Searching…" : "No events a month either side"}</p>
@@ -383,7 +401,7 @@
         </div>
         <div class="grid-body" style:height="{24 * HOUR_PX}px">
           <div class="gutter hours">
-            {#each hours as h (h.h)}<span style:top="{h.h * HOUR_PX}px">{h.label}</span>{/each}
+            {#each hours as h (h.h)}<span style:top="{h.h * HOUR_PX}px" class:covered={showsToday && Math.abs(h.h * HOUR_PX - nowTop) < 11}>{h.label}</span>{/each}
             {#if showsToday}<span class="now-label" style:top="{nowTop}px">{nowLabel}</span>{/if}
           </div>
           {#each columns as c, ci (c.date.getTime())}
@@ -394,15 +412,15 @@
                 {@const moving = drag?.key === eventKey(e) ? drag : null}
                 {@const grow = moving?.kind === "resize" ? (moving.minutes / 60) * HOUR_PX : 0}
                 {@const shift = moving?.kind === "move" ? (moving.minutes / 60) * HOUR_PX : 0}
-                <button class="ev {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} class:editable={draggable(e)} class:dragging={!!moving} data-key={eventKey(e)} style:--c={colorOf(e)}
+                <button class="ev {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} class:editable={draggable(e)} class:dragging={!!moving} class:short={p.height + grow < 30} data-key={eventKey(e)} style:--c={colorOf(e)}
                   style:top="{p.top + 1 + shift}px" style:height="{p.height - 2 + grow}px" style:left="calc({(p.lane * 100) / p.lanes}% + 1px)" style:width="calc({100 / p.lanes}% - 3px)"
                   style:transform={moving?.days ? `translateX(${moving.days * moving.colWidth}px)` : undefined}
                   aria-label={label(e)} title={draggable(e) ? "Double-click to edit · drag to move · drag the bottom edge to change the length" : undefined}
                   onclick={(ev) => open(e, ev.currentTarget)} ondblclick={(ev) => { ev.stopPropagation(); void editEvent(e); }}
                   onpointerdown={(ev) => dragStart(ev, e, ci)} onpointermove={dragMove} onpointerup={dragEnd} onpointercancel={dragCancel}>
-                  <span class="ev-title">{eventTitle(e)}</span>
+                  <span class="ev-title" style:-webkit-line-clamp={p.height + grow >= 30 ? Math.max(1, Math.floor((p.height + grow - 8 - (p.height >= 38 || moving ? 14 : 0) - (p.height >= 70 && e.location ? 14 : 0)) / 14.4)) : undefined}>{eventTitle(e)}</span>
                   {#if moving}<span class="ev-sub">{shortTime(ms(e.start) + (moving.kind === "move" ? moving.minutes * 60000 : 0))}–{shortTime(ms(e.end) + moving.minutes * 60000)}</span>
-                  {:else if p.height >= 38}<span class="ev-sub">{shortTime(ms(e.start))}</span>{/if}
+                  {:else if p.height >= 38 || p.height < 30}<span class="ev-sub">{shortTime(ms(e.start))}</span>{/if}
                   {#if p.height >= 70 && e.location}<span class="ev-sub ellipsis">{e.location}</span>{/if}
                 </button>
               {/each}
@@ -569,7 +587,14 @@
   .ev.cancelled { opacity: 0.55; text-decoration: line-through; }
   .ev.selected { box-shadow: inset 3px 0 0 var(--c), 0 0 0 2px var(--c); z-index: 4; }
   .ev.flat.selected { box-shadow: 0 0 0 1.5px var(--c); }
-  .ev-title { font-size: 11.5px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+  /* Words wrap whole (a narrow lane clips a long word rather than breaking it mid-word). */
+  .ev-title { font-size: 11.5px; font-weight: 700; line-height: 1.25; overflow-wrap: normal; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; flex: none; }
+  /* Under half an hour: one line, the title then the time, so neither is cut through the middle. */
+  .ev.short { flex-direction: row; align-items: center; gap: 5px; padding-top: 0; padding-bottom: 0; }
+  .ev.short .ev-title, .ev.short .ev-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; font-size: 10.5px; }
+  .ev.short .ev-title { display: block; flex: 0 1 auto; min-width: 0; }
+  .ev.short .ev-sub { flex: 0 100 auto; min-width: 0; }
+  .hours span.covered { visibility: hidden; }
   .ev-sub { font-size: 11px; opacity: 0.85; }
   .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -608,7 +633,7 @@
   .day-panel { flex: 0 0 320px; border-left: 1px solid var(--line); padding: 16px 18px; overflow-y: auto; }
   .pick { margin: 0; color: var(--text-3); }
   .ev.editable { touch-action: none; }
-  .ev.editable::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+  .ev.editable:not(.short)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
   .ev.dragging { z-index: 6; opacity: 0.88; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); cursor: grabbing; transition: none; }
   .popover { --pop-bg: var(--surface); position: fixed; z-index: 40; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--sep-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08); }
   :global(:root[data-theme="dark"]) .popover { --pop-bg: #2c2c2e; background: #2c2c2e; }

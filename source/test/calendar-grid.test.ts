@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allDayOn, calendarOf, eventKey, eventTitle, daysOf, emailsAbout, eventLook, eventNotes, inAllDayRow, miniMonth, monthCells, overlapsWith, placeDay, rangeFor, searchEvents, shownEvents, step, titleFor, whenText } from "../src/lib/calendar-grid";
+import { allDayOn, calendarOf, eventKey, eventTitle, daysOf, emailsAbout, eventLook, eventNotes, inAllDayRow, miniMonth, monthCells, overlapsWith, placeDay, rangeFor, oncePerSeries, searchEvents, shownEvents, step, titleFor, whenText } from "../src/lib/calendar-grid";
 import type { CalendarEvent } from "../src/lib/meeting-status";
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi);
@@ -157,5 +157,15 @@ describe("shared calendars on the page", () => {
     expect(eventTitle(theirs)).toBe("Busy");
     expect(eventTitle({ ...theirs, subject: "Board prep" })).toBe("Board prep");
     expect(eventTitle({ ...mine, subject: "" })).toBe("(no title)");
+  });
+});
+
+describe("search results once per series", () => {
+  const occ = (uid: string, day: number, subject = "Standup"): any => ({ accountId: "a", calendarId: "c", id: `${uid}#${day}`, uid, subject, location: "", start: new Date(2026, 10, day, 9).toISOString(), end: new Date(2026, 10, day, 9, 15).toISOString(), allDay: false });
+  it("keeps a repeating event's next occurrence, upcoming first, then the past, latest first", () => {
+    const now = new Date(2026, 10, 18, 12).getTime();
+    const list = [occ("s", 16), occ("s", 17), occ("s", 19), occ("s", 20), occ("one", 21, "Offsite"), occ("old", 10, "Kickoff"), occ("old2", 14, "Retro")];
+    const out = oncePerSeries(list, now);
+    expect(out.map((r) => [r.event.subject, new Date(r.event.start).getDate(), r.count])).toEqual([["Standup", 19, 4], ["Offsite", 21, 1], ["Retro", 14, 1], ["Kickoff", 10, 1]]);
   });
 });

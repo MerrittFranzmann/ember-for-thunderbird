@@ -176,7 +176,7 @@
   .cal[aria-checked="true"] .box { background: var(--c); }
   .mini { margin-top: 18px; padding: 12px 6px 4px; border-top: 1px solid var(--sep); }
   .mini-head { display: flex; align-items: center; margin-bottom: 6px; }
-  .mini-title { flex: 1; font-size: 12.5px; }
+  .mini-title { flex: 1; font-size: 12.5px; color: var(--text); }
   .mini-title b { font-weight: 700; }
   .mini-head button { width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--text-2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
   .mini-head button:hover { background: var(--hover); }

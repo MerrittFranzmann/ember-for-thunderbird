@@ -256,6 +256,27 @@ export function emailsAbout(event: CalendarEvent, headers: MessageHeader[], limi
 }
 
 /** Events whose title, place or people match a search, soonest first from `from`. */
+/** Search results with each repeating event once: its next occurrence (or, if all are past, its latest), and how
+ *  many occurrences were found. Upcoming first, soonest first; then past ones, most recent first. */
+export function oncePerSeries(events: CalendarEvent[], now: number): { event: CalendarEvent; count: number }[] {
+  const series = new Map<string, { event: CalendarEvent; count: number }>();
+  const upcoming = (e: CalendarEvent) => ms(e.end) > now;
+  for (const event of events) {
+    const key = event.uid ? `${event.accountId}|${event.calendarId || ""}|${event.uid}` : eventKey(event);
+    const seen = series.get(key);
+    if (!seen) { series.set(key, { event, count: 1 }); continue; }
+    seen.count++;
+    const a = seen.event, b = event;
+    const better = upcoming(b) ? !upcoming(a) || ms(b.start) < ms(a.start) : !upcoming(a) && ms(b.start) > ms(a.start);
+    if (better) seen.event = b;
+  }
+  return [...series.values()].sort((x, y) => {
+    const ux = upcoming(x.event), uy = upcoming(y.event);
+    if (ux !== uy) return ux ? -1 : 1;
+    return ux ? ms(x.event.start) - ms(y.event.start) : ms(y.event.start) - ms(x.event.start);
+  });
+}
+
 export function searchEvents(events: CalendarEvent[], query: string): CalendarEvent[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];

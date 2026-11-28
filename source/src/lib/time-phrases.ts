@@ -30,6 +30,13 @@ const T = "(\\d{1,2})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?)?";
 const RANGE = new RegExp(`^(?:from|between)?\\s*${T}\\s*(?:-|–|—|to|and|until|till)\\s*${T}(?![\\d:])`, "i");
 const SINGLE = new RegExp(`^(?:at|@|around|by)?\\s*(?:${T}(?![\\d:/])|(noon|midday))`, "i");
 const PART = /^(?:in\s+the\s+|at\s+|for\s+)?(morning|afternoon|evening|lunch(?:time)?|noon|tonight)\b/i;
+// A time written on its own (before a date, or with no date): "3pm", "2-3pm" (only the end has am/pm), "9:30-10am", "noon".
+const MER = "(?:a\\.?m\\.?|p\\.?m\\.?)";
+const LONE_TIME = `\\d{1,2}(?::\\d{2})?\\s*${MER}?\\s*(?:-|–|to)\\s*\\d{1,2}(?::\\d{2})?\\s*${MER}|\\d{1,2}(?::\\d{2})?\\s*${MER}`;
+// "Dec 10-12", "Dec 10 to Dec 12": the last day of a run of days (not "Dec 10 2-3pm").
+const DAY_RUN = new RegExp(`^\\s*(?:-|–|—|to|through|thru|until)\\s*(?:(${MO})\\.?\\s+)?(\\d{1,2})${ORD}\\b(?!\\s*(?::|-|–|${MER}))`, "i");
+// "for 30 minutes", "for an hour", "for 1.5 hours", "for half an hour".
+const LASTING = /\s+for\s+(half\s+an?|an?|one|\d+(?:\.\d+)?)\s*(minutes?|mins?|hours?|hrs?|h)\b/i;
 
 const meridiem = (m: string | undefined) => (m ? (m[0].toLowerCase() === "p" ? "pm" : "am") : "");
 /** 24-hour clock from "1", "pm": hours 1–7 without am/pm are afternoons (meetings), 8–11 mornings. */
@@ -123,15 +130,25 @@ export function findTimes(text: string, ref: Date, { days = false } = {}): Found
     if (!time) {
       // "at 2pm on Thursday", "the morning of Nov 19".
       const before = text.slice(Math.max(0, index - 30), index);
-      const lead = /(?:(?:at|from)\s+)?(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:-|–|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)?|morning|afternoon|evening|noon)\s+(?:on\s+|of\s+)?$/i.exec(before);
+      const lead = new RegExp(`(?:(?:at|from)\\s+)?(${LONE_TIME}|morning|afternoon|evening|noon)\\s+(?:on\\s+|of\\s+)?$`, "i").exec(before);
       const parsed = lead && timeAt(lead[1]);
       if (lead && parsed) { time = parsed; index -= lead[0].length; length += lead[0].length; }
     }
     if (!time && !days) continue;
+    // A run of days ("Dec 10-12"): all day from the first to the last.
+    let last: Date | null = null;
+    const run = !time && (groups.mo || groups.mo2 || groups.wdmo) ? DAY_RUN.exec(after) : null;
+    if (run) {
+      const month = run[1] ? MONTH[run[1].slice(0, 3).toLowerCase()] : day.getMonth();
+      let end = new Date(day.getFullYear(), month, Number(run[2]));
+      if (!run[1] && end < day) end = new Date(day.getFullYear(), month + 1, Number(run[2]));
+      if (end < day) end = new Date(day.getFullYear() + 1, month, Number(run[2]));
+      if (end.getDate() === Number(run[2]) && end > day && end.getTime() - day.getTime() < 62 * DAY) { last = end; length += run[0].length; }
+    }
     if (found.some((f) => index < f.index + f.text.length)) continue;
     found.push(time
       ? { text: text.slice(index, index + length).trim(), index, start: at(day, time.from), end: at(day, time.to), allDay: false, timed: true }
-      : { text: match[0], index, start: day.getTime(), end: day.getTime() + DAY, allDay: true, timed: false });
+      : { text: text.slice(index, index + length), index, start: day.getTime(), end: (last || day).getTime() + DAY, allDay: true, timed: false });
   }
   return found;
 }
@@ -146,8 +163,8 @@ export function quickAdd(text: string, now: Date): { title: string; location: st
     when = { start: found.start, end: found.end, allDay: found.allDay };
     rest = rest.slice(0, found.index) + " " + rest.slice(found.index + found.text.length);
   } else {
-    const time = /\s(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:-|–|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)?|noon)(?=\s)/i.exec(rest);
-    const parsed = time && timeAt(time[1].replace(/^/, "at "));
+    const time = new RegExp(`\\s(?:at\\s+)?(${LONE_TIME}|noon)(?=\\s)`, "i").exec(rest);
+    const parsed = time && timeAt(time[1]);
     if (time && parsed) {
       let day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       if (at(day, parsed.from) <= now.getTime()) day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
@@ -158,6 +175,16 @@ export function quickAdd(text: string, now: Date): { title: string; location: st
   if (!when) {
     const next = new Date(now); next.setMinutes(0, 0, 0); next.setHours(next.getHours() + 1);
     when = { start: next.getTime(), end: next.getTime() + 3600000, allDay: false };
+  }
+  // "for 30 minutes": how long, from the start (a time without an end lasts an hour).
+  const lasting = LASTING.exec(rest);
+  if (lasting) {
+    const amount = /^half/i.test(lasting[1]) ? 0.5 : /^(?:an?|one)$/i.test(lasting[1]) ? 1 : Number(lasting[1]);
+    const minutes = Math.round(amount * (/^h/i.test(lasting[2]) ? 60 : 1));
+    if (!when.allDay && minutes >= 5 && minutes <= 24 * 60) {
+      when = { ...when, end: when.start + minutes * 60000 };
+      rest = rest.slice(0, lasting.index) + " " + rest.slice(lasting.index + lasting[0].length);
+    }
   }
   // " at Cafe Rio" / " @ Cafe Rio" at the end is the place.
   let location = "";
