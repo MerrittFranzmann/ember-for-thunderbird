@@ -19,6 +19,7 @@ import type { Category, MessageHeader } from "./types";
 import { calendar, nameFromMail } from "./calendar.svelte";
 import { freeSlots, slotLabel } from "./find-time";
 import { localTime, windowsZone } from "./calendar-edit";
+import { lock } from "./lock.svelte";
 
 const SECTION_IN: Record<string, Category> = { people: "people", calendar: "calendar", updates: "notification", newsletters: "newsletter", receipts: "receipt" };
 const SECTION_OUT: Record<Category, string> = { people: "people", calendar: "calendar", notification: "updates", newsletter: "newsletters", receipt: "receipts" };
@@ -319,6 +320,8 @@ export async function syncAgentBridge() {
         if (!handler) throw new Error(`Unknown request "${method}".`);
         if (!store.settings.agentAccess) throw new Error("AI agents are turned off in Ember's Settings.");
         if (store.agentBlocked(who)) throw new Error(`The user blocked ${agentLook(who, title).name} in Ember's Settings (AI agents).`);
+        // Locked with Touch ID: nothing behind the lock screen is shown to agents either.
+        if (lock.locked) throw new Error("Ember is locked. Ask the user to unlock it (Touch ID), then try again.");
         log = true;
         store.agentSeen(who, title);
         if (method === "mark") before = marksBefore(request);

@@ -6,6 +6,14 @@
  * The pure helpers at the top are unit-tested (test/links-experiment.test.ts). */
 "use strict";
 
+/** A host on this computer's network: private IPv4 ranges, link-local, IPv6 local, or a .local / .lan name. */
+function isPrivateHost(host) {
+  const h = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (/\.(?:local|lan|internal|home|localdomain)$/.test(h) || !h.includes(".") && !h.includes(":")) return true;
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(h);
+  if (v4) { const [a, b] = [Number(v4[1]), Number(v4[2])]; return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127); }
+  return h === "::1" || /^f[cd]/.test(h) || /^fe80:/.test(h) || /^::ffff:/.test(h);
+}
 const LINK_CHECK_HOSTS = /^(?:docs\.google\.com|drive\.google\.com|[a-z0-9-]+\.sharepoint\.com|onedrive\.live\.com|1drv\.ms|(?:www\.)?dropbox\.com)$/i;
 const LINK_SIGN_IN_HOSTS = /^(?:accounts\.google\.com|login\.microsoftonline\.com|login\.live\.com|login\.microsoft\.com)$/i;
 
@@ -31,7 +39,7 @@ function linkTitle(title) {
   return text.replace(/\s+[-–|]\s+(?:Google (?:Docs|Sheets|Slides|Drive|Forms)|Microsoft (?:Word|Excel|PowerPoint)(?: Online)?|OneDrive|SharePoint|Dropbox)$/i, "").slice(0, 200);
 }
 
-if (typeof module === "object") module.exports = { linkVerdict, linkTitle, LINK_CHECK_HOSTS };
+if (typeof module === "object") module.exports = { linkVerdict, linkTitle, LINK_CHECK_HOSTS, isPrivateHost };
 
 var sparkLinks = class extends ExtensionCommon.ExtensionAPI {
   getAPI(context) {
@@ -74,16 +82,24 @@ var sparkLinks = class extends ExtensionCommon.ExtensionAPI {
             return { status: "unknown", title: "" };
           } finally { clearTimeout(timer); }
         },
-        /** RFC 8058 one-click unsubscribe: the list's own https address (loopback http for tests only). */
+        /** RFC 8058 one-click unsubscribe: the list's own public https address. A sender's link never reaches this
+         *  Mac or its network (localhost, 10.x, 192.168.x …): this POST is privileged. Loopback only for the live
+         *  tests, while Marionette (remote control) runs. */
         async unsubscribe(url) {
           let parsed;
           try { parsed = new URL(url); } catch { throw new ExtensionError("That isn't a link."); }
-          if (!(parsed.protocol === "https:" || (parsed.protocol === "http:" && /^(?:127\.0\.0\.1|localhost)$/.test(parsed.hostname)))) throw new ExtensionError("One-click unsubscribe needs an https address.");
+          const testing = (() => { try { return !!Cc["@mozilla.org/remote/marionette;1"]?.getService(Ci.nsIMarionette)?.running; } catch { return false; } })();
+          const loopback = /^(?:127\.\d+\.\d+\.\d+|localhost|\[::1\])$/i.test(parsed.hostname);
+          if (testing && loopback && /^https?:$/.test(parsed.protocol)) { /* the live test's local list server */ }
+          else if (parsed.protocol !== "https:") throw new ExtensionError("One-click unsubscribe needs an https address.");
+          else if (loopback || isPrivateHost(parsed.hostname)) throw new ExtensionError("That unsubscribe link points at this computer or its network, so Ember won't follow it.");
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 15000);
           try {
-            const reply = await fetch(parsed.href, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "List-Unsubscribe=One-Click", credentials: "omit", cache: "no-store", redirect: "follow", signal: controller.signal });
+            const reply = await fetch(parsed.href, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "List-Unsubscribe=One-Click", credentials: "omit", cache: "no-store", redirect: "manual", signal: controller.signal });
             reply.body?.cancel().catch(() => {});
+            // Not followed (a public link could redirect to this Mac); the list answered, so it took the request.
+            if (reply.type === "opaqueredirect") return { ok: true, status: 302 };
             return { ok: reply.ok, status: reply.status };
           } catch (error) {
             return { ok: false, status: 0, error: String(error?.message || error) };

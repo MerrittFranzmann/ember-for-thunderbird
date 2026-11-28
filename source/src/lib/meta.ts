@@ -215,7 +215,9 @@ export class MetaCache {
           // remember it for this session only — never persisted, so it's retried
           // next time instead of being stuck with an empty preview forever.
           const prev = this.mem.get(keyOf(job.msg)) || {};
-          this.mem.set(keyOf(job.msg), { ...prev, cat: prev.cat ?? classify(job.msg.author, undefined, this.me, job.msg.subject), lvl: "f", snippet: prev.snippet ?? "", v: META_SCHEMA } as MessageMeta);
+          // A failed headers-only job is only that: the full read (and the cache's body) can still fill the preview.
+          const lvl = job.level === "h" ? (prev.lvl === "f" ? "f" : "h") : "f";
+          this.mem.set(keyOf(job.msg), { ...prev, cat: prev.cat ?? classify(job.msg.author, undefined, this.me, job.msg.subject), lvl, snippet: prev.snippet ?? "", v: META_SCHEMA } as MessageMeta);
           this.groupingChanged = this.threadingChanged = true;
           this.scheduleNotification();
         })

@@ -20,3 +20,12 @@ describe("exclusive calendar buckets", () => {
     expect(groups.flatMap((b) => b.conversations.map((c) => c.key))).toEqual(["today","week","old","older"]);
   });
 });
+
+describe("future-dated mail", () => {
+  it("counts a few hours ahead as today, and only later as Upcoming", () => {
+    const now = new Date(2026, 10, 16, 23, 0);
+    expect(timeBucket(new Date(2026, 10, 17, 2, 0), now).id).toBe("day");
+    expect(timeBucket(new Date(2026, 10, 17, 9, 0), now).id).toBe("future");
+    expect(timeBucket(new Date(2037, 0, 1), now).id).toBe("future");
+  });
+});

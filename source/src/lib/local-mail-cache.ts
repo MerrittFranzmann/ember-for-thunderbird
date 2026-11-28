@@ -58,6 +58,9 @@ export class LocalMailCache {
   private writing = Promise.resolve();
   private warming?: Promise<void>;
   private generation = 0;
+  /** When each saved email was first added this session: an inventory never removes one added after it began
+   *  (new mail arriving in a folder the inventory had already passed isn't in what it found). */
+  private addedAt = new Map<string, number>();
   private tombstones = new Set<string>();
   private updates = new Map<string, Partial<MessageHeader>>();
   private requests = new Map<string, Promise<any>>();
@@ -237,6 +240,7 @@ export class LocalMailCache {
       if (message.id >= 0) this.liveIds.set(key, message.id);
       if (keepMessage(message)) {
         const existing = this.headers.get(key);
+        if (!existing) this.addedAt.set(key, Date.now());
         const header = this.interner.header({ ...plain(message), date: new Date(message.date) });
         this.headers.set(key, header);
         // Session IDs are deliberately absent on disk.
@@ -375,6 +379,7 @@ export class LocalMailCache {
     return out;
   }
   private removeKey(key: string) {
+    this.addedAt.delete(key);
     if (this.headers.has(key)) this.touch(key);
     this.attachmentKeySet?.delete(key); this.attachmentKeyEdits?.set(key, false);
     this.headers.delete(key);
@@ -568,6 +573,7 @@ export class LocalMailCache {
     const inventoryDone = inventory ? perf.span("cache-owner.inventory") : undefined;
     if (this.paused) { this.progress({ phase: "paused" }); return; }
     const generation = this.generation;
+    const startedAt = Date.now();
     const found = new Map<string, MessageHeader>();
     if (inventory) this.progress({ phase: "index", total: 0, done: 0, failed: 0, error: undefined });
     // Event-driven passes only complete what is already known (e.g. newly received mail).
@@ -607,7 +613,7 @@ export class LocalMailCache {
       // Only a complete, uninterrupted inventory may remove missing disk entries (a partial one: only those
       // of folders that no longer exist).
       if (this.paused) { this.progress({ phase: "paused" }); return; }
-      if (inventory && generation === this.generation) for (const key of this.headers.keys()) if (!found.has(key)) this.removeKey(key);
+      if (inventory && generation === this.generation) for (const key of this.headers.keys()) if (!found.has(key) && (this.addedAt.get(key) ?? 0) < startedAt) this.removeKey(key);
       if (inventory && plan) {
         this.lastInventoryAt = Date.now();
         if (plan.full) this.lastFullInventoryAt = this.lastInventoryAt;

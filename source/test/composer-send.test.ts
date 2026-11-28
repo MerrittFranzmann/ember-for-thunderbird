@@ -92,8 +92,13 @@ describe("sending without unnecessary Thunderbird windows", () => {
   });
   it("saves an agent's reply draft, finding it in Drafts when Thunderbird doesn't hand it back (server Drafts)", async () => {
     mocks.api.compose.saveMessage.mockResolvedValueOnce({ mode: "draft", messages: [] } as any);
-    mocks.api.messages.query.mockResolvedValueOnce({ messages: [{ id: 50, subject: "Other", date: new Date() }, { id: 51, subject: "Plan", date: new Date(), headerMessageId: "draft-51@x" }] } as any);
+    // Before saving, Drafts has the user's own reply to the same email; after, the agent's appears too.
+    mocks.api.messages.query.mockResolvedValueOnce({ messages: [{ id: 49, subject: "Plan", date: new Date(), headerMessageId: "users-own@x" }] } as any)
+      .mockResolvedValueOnce({ messages: [{ id: 50, subject: "Other", date: new Date() }, { id: 51, subject: "Plan", date: new Date(), headerMessageId: "draft-51@x" }, { id: 49, subject: "Plan", date: new Date(Date.now() + 1000), headerMessageId: "users-own@x" }] } as any);
+    const original = mocks.api.messages.getFull.getMockImplementation();
+    mocks.api.messages.getFull.mockImplementation(async (id: number) => id === 51 ? { contentType: "text/plain", body: "Sounds good.\n\nSee you then", headers: {} } as any : (original as any)(id));
     const draft = await composer.saveReplyDraft(7, "Sounds good.\n\nSee you then", false);
+    mocks.api.messages.getFull.mockImplementation(original as any);
     expect(draft).toMatchObject({ id: 51, headerMessageId: "draft-51@x" });
     expect(mocks.api.compose.beginReply).toHaveBeenCalledWith(7, "replyToSender", expect.objectContaining({ body: expect.stringContaining("<div>Sounds good.</div><div><br></div><div>See you then</div>") }));
     expect(mocks.api.compose.sendMessage).not.toHaveBeenCalled();

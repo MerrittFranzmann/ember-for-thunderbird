@@ -37,3 +37,11 @@ describe("who can open a shared link (as a visitor who isn't signed in)", () => 
     for (const host of ["example.com", "docs.google.com.evil.test", "sharepoint.com.evil.test", "localhost"]) expect(LINK_CHECK_HOSTS.test(host)).toBe(false);
   });
 });
+
+describe("unsubscribe links never reach this Mac's network", () => {
+  it("tells private and local hosts from public ones", () => {
+    const { isPrivateHost } = module.exports;
+    for (const host of ["192.168.1.1", "10.0.0.5", "172.20.1.1", "169.254.1.1", "127.0.0.1", "printer.local", "router", "fd00::1", "[::1]", "nas.lan"]) expect(isPrivateHost(host)).toBe(true);
+    for (const host of ["list.example.com", "8.8.8.8", "172.32.0.1", "mail.google.com"]) expect(isPrivateHost(host)).toBe(false);
+  });
+});

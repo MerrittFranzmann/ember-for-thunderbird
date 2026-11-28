@@ -17,7 +17,7 @@ import { sendSettings } from "./send-settings.svelte";
 import { store } from "./store.svelte";
 import { perf } from "./perf-recorder";
 import { isFileAttachment } from "./attachments";
-import { bodyInner, extractBodies, textToHtml } from "./body";
+import { bodyInner, extractBodies, htmlToText, textToHtml } from "./body";
 import { displayName, emailOf, escapeHtml, parseAddr, splitAddrs, type Addr } from "./format";
 import type { MailIdentity, MessageHeader, MessageId, MessagePart } from "./types";
 import { followUpFor } from "./follow-ups";
@@ -44,6 +44,8 @@ export interface Draft {
   /** Quoted original (reply/forward), appended on send. */
   quoteHtml: string;
   files: File[];
+  /** A reopened draft whose attachments couldn't all be loaded: the original is kept after sending. */
+  keepOriginal?: boolean;
   /** Which signature this email has: Thunderbird's for the From address, none, or a saved one's id. */
   signature: "default" | "none" | string;
   /** Remind me if no reply in this many days (0: no reminder). */
@@ -303,12 +305,14 @@ class Composer {
       const signature = this.signatureFor(idn?.id || "");
       const body = `<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"></head><body>` +
         Composer.agentHtml(text) + (signature ? `<div><br></div>${signature}` : "") + `<br>${this.quote(h, full, false)}</body></html>`;
+      // Drafts already there (perhaps the user's own reply to the same email): never mistaken for the agent's.
+      const before = new Set((await this.draftsLike(h, idn?.accountId, started)).map((m) => m.headerMessageId));
       const tab = await api.compose.beginReply(id, all ? "replyToAll" : "replyToSender", { body, isPlainText: false, ...(idn?.id ? { identityId: idn.id } : {}) });
       try {
         if (store.settings.minimizeCompose && tab?.windowId) await api.windows.update(tab.windowId, { state: "minimized" }).catch(() => {});
         const saved = await api.compose.saveMessage(tab.id, { mode: "draft" });
         // With Drafts on the server (IMAP, Exchange) Thunderbird may not hand back the saved copy: find it there.
-        return (saved?.messages?.[0] as MessageHeader | undefined) ?? await this.findSavedDraft(h, idn?.accountId, started);
+        return (saved?.messages?.[0] as MessageHeader | undefined) ?? await this.findSavedDraft(h, idn?.accountId, started, before, text);
       } finally { await this.closeComposeTab(tab); }
     };
     const next = this.draftQueue.then(run, run);
@@ -318,19 +322,34 @@ class Composer {
 
   /** The reply draft just saved for an email: newest in the account's Drafts with its subject, looked for over
    *  about ten seconds (a server copy takes a moment to appear). Null when it doesn't show up. */
-  private async findSavedDraft(original: MessageHeader, accountId: string | undefined, since: number): Promise<MessageHeader | null> {
-    const folders = store.foldersForRole("drafts", accountId);
-    const subject = original.subject.replace(/^\s*((re|aw|sv)\s*:\s*)+/i, "").trim();
+  private async findSavedDraft(original: MessageHeader, accountId: string | undefined, since: number, before: Set<string>, text: string): Promise<MessageHeader | null> {
+    // Only a draft that wasn't there before and holds the agent's words (the user may be drafting the same reply).
+    const words = htmlToText(Composer.agentHtml(text)).replace(/\s+/g, " ").trim().slice(0, 60);
+    const checked = new Set<string>();
     for (let attempt = 0; attempt < 10; attempt++) {
-      for (const folder of folders) {
-        const page = await api.messages.query({ folderId: folder.id, fromDate: new Date(since - 120000) }).catch(() => null);
-        const match = (page?.messages || []).filter((m: MessageHeader) => m.subject.replace(/^\s*((re|aw|sv)\s*:\s*)+/i, "").trim() === subject)
-          .sort((a: MessageHeader, b: MessageHeader) => +new Date(b.date) - +new Date(a.date))[0];
-        if (match) return match;
+      for (const m of await this.draftsLike(original, accountId, since)) {
+        if (before.has(m.headerMessageId) || checked.has(m.headerMessageId)) continue;
+        checked.add(m.headerMessageId);
+        const full = typeof api.messages.getFull === "function" ? await api.messages.getFull(m.id).catch(() => null) : null;
+        // Unreadable right now: new since the save is the best there is.
+        if (!full) return m;
+        const b = extractBodies(full);
+        const body = (b.text ?? htmlToText(b.html || "")).replace(/\s+/g, " ");
+        if (!words || body.includes(words)) return m;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     return null;
+  }
+  /** Drafts in the account with the original's subject, saved from two minutes before `since`, newest first. */
+  private async draftsLike(original: MessageHeader, accountId: string | undefined, since: number): Promise<MessageHeader[]> {
+    const subject = original.subject.replace(/^\s*((re|aw|sv)\s*:\s*)+/i, "").trim();
+    const out: MessageHeader[] = [];
+    for (const folder of store.foldersForRole("drafts", accountId)) {
+      const page = await api.messages.query({ folderId: folder.id, fromDate: new Date(since - 120000) }).catch(() => null);
+      out.push(...(page?.messages || []).filter((m: MessageHeader) => m.subject.replace(/^\s*((re|aw|sv)\s*:\s*)+/i, "").trim() === subject));
+    }
+    return out.sort((a, b) => +new Date(b.date) - +new Date(a.date));
   }
 
   /** Open an existing draft (Drafts folder) in the in-app composer. */
@@ -341,11 +360,26 @@ class Composer {
       const b = extractBodies(full);
       const html = b.html !== undefined ? bodyInner(b.html) : textToHtml(b.text || "").replace(/\n/g, "<br>");
       const header = (name: string) => (full.headers?.[name] || full.headers?.[name.toLowerCase()] || [])[0] || "";
+      // The draft's attachments come along (before, they were dropped, and sending then deleted the draft that had them).
+      const files: File[] = [];
+      let missing = 0;
+      const listed = typeof api.messages.listAttachments === "function" ? await api.messages.listAttachments(id).catch(() => []) : [];
+      for (const a of (listed || []).filter(isFileAttachment)) {
+        try {
+          const file: File = await api.messages.getAttachmentFile(id, a.partName);
+          files.push(new File([file], a.name || file.name || "attachment", { type: file.type || a.contentType || "" }));
+        } catch { missing++; }
+      }
+      if (missing) store.toast({ text: `${missing} attachment${missing === 1 ? "" : "s"} of this draft couldn't be loaded. The original draft is kept when you send.`, kind: "error" });
       this.start({
         mode: "draft",
+        keepOriginal: missing > 0,
+        // Its signature stays as written (it may be a saved one, or none).
+        keepSignature: true,
         relatedId: id,
         threaded: !!header("in-reply-to"),
-        identityId: this.defaultIdentityFor(h)?.id || "",
+        // The draft's own From (not the first of the user's addresses among its recipients).
+        identityId: (store.identities.find((i) => (i.email || "").toLowerCase() === emailOf(h.author)) || this.defaultIdentityFor(h))?.id || "",
         to: (h.recipients || []).map(parseAddr),
         cc: (h.ccList || []).map(parseAddr),
         bcc: (h.bccList || []).map(parseAddr),
@@ -354,7 +388,7 @@ class Composer {
         subject: header("subject") || h.subject,
         html,
         quoteHtml: "",
-        files: [],
+        files,
       });
     } catch (e: any) {
       store.toast({ text: `Couldn't open draft: ${e?.message || e}`, kind: "error" });
@@ -405,7 +439,9 @@ class Composer {
     if (!checkLinks) warnings = warnings.filter((w) => w.kind !== "linkAccess" && w.kind !== "linkMissing");
     // Saved mail covers 90 days: a domain (or "typo") found in older mail isn't new.
     const domainOf = (w: SendWarning) => w.kind === "newDomain" ? w.key.slice(4) : w.kind === "typo" ? w.key.slice(5).split("@")[1] : "";
-    const older = await within(Promise.all(warnings.map((w) => domainOf(w) ? this.everUsed(domainOf(w)) : Promise.resolve(false))), 3000, warnings.map(() => true));
+    // Too slow to tell (a large mailbox): "new domain" is left out rather than risk nagging, but a likely typo
+    // ("gmial.com") still shows; it's the costlier mistake.
+    const older = await within(Promise.all(warnings.map((w) => domainOf(w) ? this.everUsed(domainOf(w)) : Promise.resolve(false))), 3000, warnings.map((w) => w.kind !== "typo"));
     return [...attachments, ...warnings.filter((w, i) => !domainOf(w) || !older[i])];
   }
 
@@ -499,7 +535,7 @@ class Composer {
   }
 
   private async deleteOldDraft(d: Draft) {
-    if (d.mode !== "draft" || !d.relatedId) return;
+    if (d.mode !== "draft" || !d.relatedId || d.keepOriginal) return;
     try {
       // Only ever a message in Drafts (Thunderbird may already have removed the draft and the id moved on).
       const old = await api.messages.get(d.relatedId).catch(() => null);

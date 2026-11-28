@@ -79,3 +79,10 @@ describe("before you send: shared files", () => {
     expect(kinds(base({ to: [{ name: "Ada", email: "ada@partner.org" }], links: [{ link: doc, access: "unknown" }] }))).toEqual([]);
   });
 });
+
+describe("own organization's subdomains", () => {
+  it("doesn't call a colleague at eu.northwind.example a first email to a new domain", () => {
+    const input = base({ to: [{ name: "", email: "kim@eu.northwind.example" }] });
+    expect(sendWarnings(input).filter((w) => w.kind === "newDomain")).toEqual([]);
+  });
+});

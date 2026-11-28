@@ -86,7 +86,8 @@
     untrack(() => {
       // Back from the outbox: the email's signature stays as it was written.
       if (d!.keepSignature) { d!.keepSignature = false; return; }
-      const sig = editor!.querySelector(".moz-signature");
+      // The user's own signature, never one inside quoted text (a reply quotes the sender's signature too).
+      const sig = [...editor!.querySelectorAll(".moz-signature")].find((s) => !s.closest("blockquote"));
       const html = composer.signatureFor(d!.identityId, d!.signature);
       if (sig) {
         if (html) sig.outerHTML = html;

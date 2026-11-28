@@ -8,10 +8,12 @@ function bucketer(now: Date): (value: number) => { id: string; label: string } {
   const month = +new Date(now.getFullYear(), now.getMonth(), 1);
   const year = +new Date(now.getFullYear(), 0, 1);
   const tomorrow = new Date(+day); tomorrow.setDate(day.getDate() + 1);
+  // A sender's clock or time zone a few hours ahead isn't "Upcoming": that's today's mail.
+  const upcoming = Math.max(+tomorrow, +now + 6 * 3600000);
   const years = new Map<number, { id: string; label: string }>();
   return (value) => {
     if (!Number.isFinite(value)) return { id: "unknown", label: "Undated" };
-    if (value >= +tomorrow) return { id: "future", label: "Upcoming" };
+    if (value >= upcoming) return { id: "future", label: "Upcoming" };
     if (value >= +day) return { id: "day", label: "Today" };
     if (value >= +week) return { id: "week", label: "This week" };
     if (value >= month) return { id: "month", label: "This month" };

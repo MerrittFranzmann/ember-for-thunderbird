@@ -123,12 +123,14 @@ export function sendWarnings(input: CheckInput): SendWarning[] {
     return true;
   });
   const ownDomains = new Set([...me, lower(input.from)].filter((email) => email.includes("@")).map(domainOf));
+  // The user's organization includes its subdomains (eu.acme.com for acme.com), but not other people at webmail.
+  const own = (domain: string) => ownDomains.has(domain) || [...ownDomains].some((d) => !WEBMAIL.has(d) && domain.endsWith(`.${d}`));
 
   // Typos first: a mistyped domain is also "new", and the fix is different.
   const typos = new Set<string>();
   for (const addr of recipients) {
     const email = lower(addr.email), domain = domainOf(email);
-    if (ownDomains.has(domain) || input.known.addresses.has(email)) continue;
+    if (own(domain) || input.known.addresses.has(email)) continue;
     const suggestion = likelyDomain(domain, input.known.domains);
     if (!suggestion) continue;
     typos.add(email);
@@ -140,7 +142,7 @@ export function sendWarnings(input: CheckInput): SendWarning[] {
   const fresh = new Map<string, Addr[]>();
   for (const addr of recipients) {
     const email = lower(addr.email), domain = domainOf(email);
-    if (typos.has(email) || ownDomains.has(domain) || WEBMAIL.has(domain) || (input.known.domains.get(domain) || 0) > 0) continue;
+    if (typos.has(email) || own(domain) || WEBMAIL.has(domain) || (input.known.domains.get(domain) || 0) > 0) continue;
     fresh.set(domain, [...(fresh.get(domain) || []), addr]);
   }
   for (const [domain, addrs] of fresh) {
@@ -151,11 +153,11 @@ export function sendWarnings(input: CheckInput): SendWarning[] {
   if ((input.mode === "reply" || input.mode === "replyAll") && input.thread?.length) {
     const thread = new Set(input.thread.map(lower));
     const threadDomains = new Set([...thread].filter((email) => !me.has(email)).map(domainOf));
-    const internal = threadDomains.size > 0 && [...threadDomains].every((domain) => ownDomains.has(domain)) && ![...ownDomains].every((domain) => WEBMAIL.has(domain));
+    const internal = threadDomains.size > 0 && [...threadDomains].every((domain) => own(domain)) && ![...ownDomains].every((domain) => WEBMAIL.has(domain));
     const added = recipients.filter((addr) => !thread.has(lower(addr.email)));
     for (const addr of added.slice(0, 4)) {
       const email = lower(addr.email);
-      const outside = internal && !ownDomains.has(domainOf(email));
+      const outside = internal && !own(domainOf(email));
       warnings.push({ key: `added:${email}`, kind: "notInThread", text: `${nameOf(addr)} wasn't in this conversation`, detail: outside ? `Everyone else in it is at ${domainOf(input.from) || [...ownDomains][0]}; ${email} is outside it.` : email !== nameOf(addr).toLowerCase() ? email : undefined, fix: { label: "Remove", remove: email } });
     }
     if (added.length > 4) warnings.push({ key: "added:more", kind: "notInThread", text: `${added.length - 4} more people weren't in this conversation` });

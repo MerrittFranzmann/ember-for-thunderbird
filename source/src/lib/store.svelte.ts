@@ -444,6 +444,8 @@ export class Store {
   private listIds = new Set<string>();
   private bumpTimer: any = null;
   private recentMoves = new Map<string, { header: MessageHeader; at: number }>();
+  /** recentMoves' key: the Message-ID within an account (one email in two accounts is two copies to put back). */
+  private moveKey(m: MessageHeader) { return `${m.folder?.accountId || ""}|${m.headerMessageId}`; }
   private toastSeq = 0;
   private recipientsSeen = new Map<string, { name: string; count: number; last: number }>();
 
@@ -629,10 +631,12 @@ export class Store {
     const top = topView ? buckets.flatMap((bucket) => bucket.conversations.filter((conv) => this.isTop(conv))) : [];
     const onTop = new Set(top.map((conv) => conv.key));
     const head: ListItem[] = top.length ? [{ type: "header", key: "top", label: "Top", count: top.length }, ...top.map((conv): ListItem => ({ type: "conv", key: conv.key, conv }))] : [];
+    // The first date group (Today, usually) opens by default, even below an "Upcoming" one (a future-dated email).
+    const firstDated = Math.max(0, buckets.findIndex((bucket) => bucket.id !== "future"));
     return head.concat(buckets.flatMap((bucket, index): ListItem[] => {
       const conversations = onTop.size ? bucket.conversations.filter((conv) => !onTop.has(conv.key)) : bucket.conversations;
       if (!conversations.length && onTop.size) return [];
-      const expanded = this.settings.timeBucketExpanded[`${prefix}:${bucket.id}`] ?? (pins || index === 0);
+      const expanded = this.settings.timeBucketExpanded[`${prefix}:${bucket.id}`] ?? (pins || index === firstDated || bucket.id === "future");
       return [
         { type: "bucket", key: `bucket:${bucket.id}`, bucketId: bucket.id, label: bucket.label, count: conversations.length, expanded },
         ...(expanded ? conversations.map((conv): ListItem => ({ type: "conv", key: conv.key, conv })) : []),
@@ -2167,7 +2171,7 @@ export class Store {
       }
       const n = convs.length;
       const undo = undoable ? this.pushUndo(label, async () => {
-        if (beforeUndo) await beforeUndo(originals.map((o) => this.recentMoves.get(o.headerMessageId)?.header.id ?? o.id)).catch(() => {});
+        if (beforeUndo) await beforeUndo(originals.map((o) => this.recentMoves.get(this.moveKey(o))?.header.id ?? o.id)).catch(() => {});
         await this.undoMove(originals, startedAt);
       }) : undefined;
       this.toast({
@@ -2187,20 +2191,25 @@ export class Store {
     this.updateArchiveIntents((intents) => forget(intents, originals.map((o) => o.headerMessageId)));
     // Moves arrive via messages.onMoved (we index them by Message-ID). Give TB a moment.
     for (let tries = 0; tries < 20; tries++) {
-      const found = originals.every((o) => (this.recentMoves.get(o.headerMessageId)?.at ?? 0) >= since);
+      const found = originals.every((o) => (this.recentMoves.get(this.moveKey(o))?.at ?? 0) >= since);
       if (found) break;
       await new Promise((r) => setTimeout(r, 100));
     }
     const byFolder = new Map<string, MessageId[]>();
     let missing = 0;
     for (const o of originals) {
-      const mv = this.recentMoves.get(o.headerMessageId);
-      if (!mv || !o.folder?.id) {
+      let id = this.recentMoves.get(this.moveKey(o))?.header.id;
+      // Moved a while ago (no longer remembered): found again by its Message-ID in the same account, not in its old folder.
+      if (id === undefined && o.folder?.id && o.headerMessageId) {
+        const found = await api.messages.query({ headerMessageId: o.headerMessageId, accountId: o.folder.accountId }).catch(() => null);
+        id = (found?.messages || []).find((m: MessageHeader) => m.folder?.id !== o.folder!.id)?.id;
+      }
+      if (id === undefined || !o.folder?.id) {
         missing++;
         continue;
       }
       const arr = byFolder.get(o.folder.id) || [];
-      arr.push(mv.header.id);
+      arr.push(id);
       byFolder.set(o.folder.id, arr);
     }
     try {
@@ -2646,7 +2655,7 @@ export class Store {
       this.readerRev++;
       this.refreshAttachmentsSoon();
       const now = Date.now();
-      for (const m of b) this.recentMoves.set(m.headerMessageId, { header: m, at: now });
+      for (const m of b) this.recentMoves.set(this.moveKey(m), { header: m, at: now });
       // prune
       for (const [k, v] of this.recentMoves) if (now - v.at > 120000) this.recentMoves.delete(k);
       let changed = false;

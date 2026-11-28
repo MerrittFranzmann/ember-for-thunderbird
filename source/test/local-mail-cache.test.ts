@@ -117,6 +117,18 @@ describe("persistent mail cache", () => {
     cache.register([recent],true); await cache.flush(); expect(cache.all()[0].read).toBe(true);
     cache.close(); const next=create(native,name); await next.init(); expect(next.all()).toHaveLength(1); expect(next.all()[0].read).toBe(true);
   });
+  it("keeps mail that arrives while a full inventory runs (it isn't in what the inventory found)", async () => {
+    const native = backend(); const cache = create(native); await cache.init();
+    const old = header(1, { date: new Date(Date.now() - 86400000) }); cache.register([old]);
+    // Before this inventory began: the stale header should still go.
+    await new Promise((r) => setTimeout(r, 5));
+    const listed = header(2), arrived = header(3, { subject: "Just arrived" });
+    native.messages.query.mockImplementation(async () => { cache.register([arrived], true); return { id: null, messages: [listed] }; });
+    await cache.warm({ inventory: true });
+    const subjects = cache.all().map((h) => h.id);
+    expect(subjects).toContain(2);
+    expect(cache.all().some((h) => h.subject === "Just arrived")).toBe(true);
+  });
   it("keeps cached data on an offline index failure and exposes a retryable error", async () => {
     const native=backend(); const cache=create(native); await cache.init(); cache.register([header(1)]); await cache.fetch("bodies",1);
     native.messages.query.mockRejectedValueOnce(new Error("offline")); await cache.warm();

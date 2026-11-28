@@ -88,6 +88,10 @@ function avatar(address: string, cls: string): string {
 }
 
 /** The print document for a conversation. Remote images load only with `allowRemote` (the CSP). */
+/** An email's CSS placed inside <style>: "</" can't end the element early (an SVG style's text may hold
+ *  "</style></template>…" and reach the rest of the PDF). In CSS "<\/" means the same. */
+function cssText(css: string): string { return css.replace(/<\//g, "<\\/"); }
+
 export function buildThreadHtml(subject: string, messages: PrintMessage[], allowRemote: boolean, exportedAt: Date = new Date()): string {
   const csp = `default-src 'none'; img-src data: blob:${allowRemote ? " https: http:" : ""}; style-src 'unsafe-inline'${allowRemote ? " https:" : ""}; font-src data:${allowRemote ? " https:" : ""}`;
   const people = new Map<string, string>();
@@ -102,7 +106,7 @@ export function buildThreadHtml(subject: string, messages: PrintMessage[], allow
     const recipients = [m.to.length ? `to ${m.to.map(nameOf).join(", ")}` : "", m.cc.length ? `cc ${m.cc.map(nameOf).join(", ")}` : ""].filter(Boolean).join(" · ");
     const head = `<div class="msg-head">${avatar(m.from, "avatar")}<div class="who"><b>${escapeHtml(sender.name || sender.email || m.from)}${sender.name && sender.email ? `<span>${escapeHtml(sender.email)}</span>` : ""}</b>${recipients ? `<span class="to">${escapeHtml(recipients)}</span>` : ""}</div><span class="when">${escapeHtml(when(m.date))}</span></div>`;
     const body = "html" in m.body
-      ? `<div class="mail"><template shadowrootmode="open"><style>${BASE_MAIL_CSS}</style><style>${scopeEmailCss(m.body.html.styles)}</style><div class="mail-body"${m.body.html.standardBody ? " data-spark-text-body" : ""} style="${escapeHtml(m.body.html.bodyStyle)}">${m.body.html.html}</div></template></div>`
+      ? `<div class="mail"><template shadowrootmode="open"><style>${BASE_MAIL_CSS}</style><style>${cssText(scopeEmailCss(m.body.html.styles))}</style><div class="mail-body"${m.body.html.standardBody ? " data-spark-text-body" : ""} style="${escapeHtml(m.body.html.bodyStyle)}">${m.body.html.html}</div></template></div>`
       : `<div class="plain">${escapeHtml(m.body.text.replace(/\s+$/, ""))}</div>`;
     const files = m.attachments.length
       ? `<div class="files">${m.attachments.map((a) => `<span class="file">${CLIP}${escapeHtml(a.name)}${sizeText(a.size) ? ` · ${sizeText(a.size)}` : ""}</span>`).join("")}</div>`

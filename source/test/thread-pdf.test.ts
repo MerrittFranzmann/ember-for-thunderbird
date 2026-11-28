@@ -26,6 +26,12 @@ describe("conversation PDF", () => {
     const html = buildThreadHtml("x", [{ from: "a@x.org", to: [], cc: [], date: 0, attachments: [], body: { html: { styles: "", html: "<p>Hi</p>", bodyStyle: "", standardBody: true } } }], false);
     expect(html).toContain('class="mail-body" data-spark-text-body');
   });
+  it("keeps an email's CSS inside its own style element", () => {
+    const evil = "p{}</style></template><style>.msg{display:none}</style>";
+    const html = buildThreadHtml("x", [{ from: "a@x.org", to: [], cc: [], date: 0, attachments: [], body: { html: { styles: evil, html: "<p>Hi</p>", bodyStyle: "", standardBody: false } } }], false);
+    expect(html).not.toContain("</style></template><style>.msg");
+    expect(html.split("</template>").length).toBe(2); // only the email's own shadow root closes
+  });
   it("names the file after the subject", () => {
     expect(pdfName("Re: Fwd: Budget / Q4")).toBe("Budget / Q4.pdf");
     expect(pdfName("")).toBe("Conversation.pdf");

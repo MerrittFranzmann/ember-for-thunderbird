@@ -67,6 +67,16 @@
       active = (active + (e.key === "ArrowDown" ? 1 : -1) + sugg.length) % sugg.length;
       e.preventDefault();
     } else if ((e.key === "Enter" || e.key === "Tab") && open && sugg[active]) {
+      // A complete address typed out is what's meant: Enter must not swap "ann@acme.com" for the top suggestion
+      // "joann@acme.com" (suggestions match anywhere). An arrowed-to suggestion still wins.
+      const typed = text.trim().replace(/^<|>$/g, "").toLowerCase();
+      if (active === 0 && /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(typed) && sugg[0].email.toLowerCase() !== typed) {
+        const exact = sugg.find((s) => s.email.toLowerCase() === typed);
+        if (exact) pick(exact); else addFromText();
+        // ⌘↵ still sends (the composer handles it after this); a plain Enter or Tab only adds the address.
+        if (!e.metaKey && !e.ctrlKey) e.preventDefault();
+        return;
+      }
       pick(sugg[active]);
       e.preventDefault();
     } else if (e.key === "Enter" || e.key === "," || e.key === ";") {
