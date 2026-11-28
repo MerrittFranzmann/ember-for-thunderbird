@@ -186,6 +186,14 @@
     });
   }
 
+  /** Overlapping events cascade (as in Apple and Google Calendar): each fills the lanes free beside it, and one with
+   *  a later lane beside it reaches 70% of a lane under that one, so narrow days keep their titles readable. */
+  function laneWidth(p: { lane: number; lanes: number; span: number }) {
+    const lane = 100 / p.lanes, left = p.lane * lane;
+    if (p.lane + p.span >= p.lanes) return 100 - left;
+    return Math.min(100 - left, (p.span + 0.7) * lane);
+  }
+
   const SNAP_MIN = 15;
   /** The event being dragged: how far (minutes) and how many days it has moved, or how much longer it is. */
   let drag = $state<{ key: string; kind: "move" | "resize"; minutes: number; days: number; colWidth: number } | null>(null);
@@ -446,7 +454,7 @@
                 {@const grow = moving?.kind === "resize" ? (moving.minutes / 60) * HOUR_PX : 0}
                 {@const shift = moving?.kind === "move" ? (moving.minutes / 60) * HOUR_PX : 0}
                 <button class="ev {eventLook(e)}" class:selected={calendar.selected === eventKey(e)} class:editable={draggable(e)} class:dragging={!!moving} class:short={p.height + grow < 30} data-key={eventKey(e)} style:--c={colorOf(e)}
-                  style:top="{p.top + 1 + shift}px" style:height="{p.height - 2 + grow}px" style:left="calc({(p.lane * 100) / p.lanes}% + 1px)" style:width="calc({100 / p.lanes}% - 3px)"
+                  style:top="{p.top + 1 + shift}px" style:height="{p.height - 2 + grow}px" style:left="calc({(p.lane * 100) / p.lanes}% + 1px)" style:width="calc({laneWidth(p)}% - 3px)" style:--z={p.lane + 1} class:stacked={p.lanes > 1}
                   style:transform={moving?.days ? `translateX(${moving.days * moving.colWidth}px)` : undefined}
                   aria-label={label(e)} title={draggable(e) ? "Double-click to edit · drag to move · drag the bottom edge to change the length" : undefined}
                   onclick={(ev) => open(e, ev.currentTarget)} ondblclick={(ev) => { ev.stopPropagation(); void editEvent(e); }}
@@ -626,7 +634,10 @@
   .ev.short { flex-direction: row; align-items: center; gap: 5px; padding-top: 0; padding-bottom: 0; }
   .ev.short .ev-title, .ev.short .ev-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; font-size: 10.5px; }
   .ev.short .ev-title { display: block; flex: 0 1 auto; min-width: 0; }
+  .ev.short { container-type: inline-size; }
   .ev.short .ev-sub { flex: 0 100 auto; min-width: 0; }
+  /* Too narrow for both: the title alone (a clipped "1:" says nothing). */
+  @container (max-width: 120px) { .ev.short .ev-sub { display: none; } }
   .hours span.covered { visibility: hidden; }
   .ev-sub { font-size: 11px; opacity: 0.85; }
   .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -672,6 +683,16 @@
   .making { position: absolute; left: 1px; right: 3px; z-index: 5; box-sizing: border-box; padding: 3px 6px 3px 8px; border-radius: 5px; overflow: hidden; pointer-events: none;
     display: flex; flex-direction: column; font-size: 11px; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
   .making b { font-size: 11.5px; }
+  .day-col .ev { z-index: var(--z, 1); }
+  .day-col .ev.stacked { box-shadow: inset 3px 0 0 var(--c), 0 0 0 1px var(--bg); }
+  .day-col .ev.stacked.selected { box-shadow: inset 3px 0 0 var(--c), 0 0 0 2px var(--c); z-index: 20; }
+  /* Stacked events are opaque, so the one underneath doesn't show through. */
+  .day-col .ev.stacked { background: linear-gradient(var(--tint), var(--tint)) var(--bg); }
+  .day-col .ev.stacked.free { background: linear-gradient(color-mix(in srgb, var(--c) 8%, transparent), color-mix(in srgb, var(--c) 8%, transparent)) var(--bg); }
+  .day-col .ev.stacked.tentative { background: repeating-linear-gradient(135deg, var(--tint) 0 5px, transparent 5px 10px) var(--bg); }
+  .day-col .ev.stacked.unanswered { background: var(--bg); }
+  .day-col .ev.selected { z-index: 20; }
+  .day-col .ev.dragging { z-index: 30; }
   .ev.dragging { z-index: 6; opacity: 0.88; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); cursor: grabbing; transition: none; }
   .popover { --pop-bg: var(--surface); position: fixed; z-index: 40; box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--sep-strong); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08); }
   :global(:root[data-theme="dark"]) .popover { --pop-bg: #2c2c2e; background: #2c2c2e; }

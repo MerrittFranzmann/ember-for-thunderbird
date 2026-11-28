@@ -108,7 +108,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 <div class="scrim" onpointerdown={(e) => { if (e.target === e.currentTarget) leave(); }}>
-  <div class="sheet" bind:this={dialog} role="dialog" aria-modal="true" aria-label={d.mode === "new" ? "New event" : `Edit ${d.title || "event"}`} tabindex="-1" onkeydown={onKey}>
+  <div class="sheet" bind:this={dialog} role="dialog" aria-modal="true" aria-label={d.mode === "new" ? "New event" : `Edit ${d.series ? "every event of " : ""}${d.title || "event"}`} tabindex="-1" onkeydown={onKey}>
     {#if d.mode === "new"}
       <label class="quick">
         <Icon name="compose" size={14} />
@@ -121,6 +121,7 @@
         <div class="titles">
           <input class="title" bind:value={d.title} placeholder="New Event" aria-label="Title" />
           <input class="where" bind:value={d.location} placeholder="Add Location" aria-label="Location" />
+          {#if d.series}<p class="from"><Icon name="calendar" size={12} />Every event in this series{d.startDate ? ` · from ${new Date(localTime(d.startDate)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</p>{/if}
           {#if d.fromEmail}<p class="from"><Icon name="mail" size={12} />From the email “{d.fromEmail.subject}”</p>{/if}
         </div>
         <label class="cal-pick" style:--c={colorOf(d.accountId)} title="Calendar">
@@ -150,6 +151,8 @@
         <span class="v">
           {#if d.occurrence}
             <span class="note">Repeats · changes here are for this event only</span>
+          {:else if d.customRepeat}
+            <span class="note">Repeats in a custom pattern · kept as it is</span>
           {:else}
             <select bind:value={d.repeat} aria-label="Repeat">{#each repeats as [value, label] (value)}<option {value}>{label}</option>{/each}</select>
           {/if}

@@ -145,13 +145,25 @@ set(pop().querySelector('.confirm textarea'), 'Sorry, moving this to next week')
 button(pop().querySelector('.confirm'), 'Cancel meeting').click();
 await until(() => !evByTitle('Partner call'), 8000);
 return { ask, gone: !evByTitle('Partner call'), toasts: toasts() };''')
+    # 6b. Edit every event of a series (1.0.12): Edit asks; All events opens the series (first time, weekly).
+    result['editSeries'] = page(HELPERS + r'''await openEvent('Standup');
+button(pop(), 'Edit').click(); await sleep(200);
+const choices = [...pop().querySelectorAll('.confirm button')].map((b) => b.textContent.trim());
+button(pop().querySelector('.confirm'), 'All events').click(); await until(() => ed(), 8000); await sleep(300);
+const opened = { ...editor(), label: ed().getAttribute('aria-label') };
+set(field('Title'), 'Team standup'); await sleep(200);
+const ready = editor();
+button(ed(), 'Save').click();
+await until(() => !ed() && evByTitle('Team standup'), 10000); await sleep(300);
+return { choices, opened, ready, shown: !!evByTitle('Team standup'), toasts: toasts() };''')
+    result['seriesSubjects'] = [EVENTS['A'][k]['subject'] for k in ('STAND', 'STAND2') if k in EVENTS['A']]
     # 7. Delete all of a series.
-    result['series'] = page(HELPERS + r'''await openEvent('Standup');
+    result['series'] = page(HELPERS + r'''await openEvent('Team standup');
 button(pop(), 'Delete').click(); await sleep(200);
 const choices = [...pop().querySelectorAll('.confirm button')].map((b) => b.textContent.trim());
 button(pop().querySelector('.confirm'), 'Delete all').click();
-await until(() => !evByTitle('Standup'), 8000);
-return { choices, gone: !evByTitle('Standup'), toasts: toasts() };''')
+await until(() => !evByTitle('Team standup'), 8000);
+return { choices, gone: !evByTitle('Team standup'), toasts: toasts() };''')
     # 8. A cancelled invitation: Remove from calendar.
     result['removeCancelled'] = page(HELPERS + r'''await openEvent('Canceled: Vendor demo');
 const actions = [...pop().querySelectorAll('.actions button')].map((b) => b.textContent.trim());
@@ -188,6 +200,8 @@ return { row: true, strip, header, editor: editor() };''' % json.dumps(SUBJECT))
     tomorrow = (midnight + timedelta(days=1))
     creates = sent('<t:CalendarItem>')
     updates = sent('<m:UpdateItem')
+    series_updates = [u for u in updates if '<t:RecurringMasterItemId' in u]
+    updates = [u for u in updates if '<t:RecurringMasterItemId' not in u]
     deletes = sent('<m:DeleteItem')
     cancels = sent('<t:CancelCalendarItem>')
     q, inv, ed_ = result['quick'], result['invite'], result['edit']
@@ -208,7 +222,11 @@ return { row: true, strip, header, editor: editor() };''' % json.dumps(SUBJECT))
         'delete': result['delete']['ask'] == 'Delete “Venue walkthrough (moved)”?' and result['delete']['gone'] and any('Deleted “Venue walkthrough (moved)”' in t for t in result['delete']['toasts']) and any('<t:ItemId Id="NEW1"/>' in d and 'SendMeetingCancellations="SendToNone"' in d for d in deletes),
         'cancel_meeting_with_note': result['cancel']['gone'] and len(cancels) == 1 and '<t:ReferenceItemId Id="MEET" ChangeKey="ck-MEET"/>' in cancels[0] and 'Sorry, moving this to next week' in cancels[0]
             and any('Cancelled “Partner call”' in t for t in result['cancel']['toasts']),
-        'delete_series': result['series']['choices'] == ['Delete this one', 'Delete all', 'Keep'] and result['series']['gone'] and any('Deleted “Standup” and the rest of the series' in t for t in result['series']['toasts']) and any('<t:RecurringMasterItemId OccurrenceId="STAND"/>' in d for d in deletes) and 'STAND2' not in EVENTS['A'],
+        'edit_series': (lambda s: s['choices'] == ['This one', 'All events', 'Keep'] and s['opened']['repeat'] == 'weekly' and s['opened']['title'] == 'Standup'
+            and s['opened']['startDate'] == midnight.strftime('%Y-%m-%d') and 'every event of' in (s['opened']['label'] or '') and s['ready']['action'] == 'Save'
+            and len(series_updates) == 1 and '<t:RecurringMasterItemId OccurrenceId="STAND"/>' in series_updates[0] and 'item:Subject' in series_updates[0] and 'calendar:Start' not in series_updates[0]
+            and result['seriesSubjects'] == ['Team standup', 'Team standup'] and s['shown'] and any('Saved “Team standup”' in x for x in s['toasts']))(result['editSeries']),
+        'delete_series': result['series']['choices'] == ['Delete this one', 'Delete all', 'Keep'] and result['series']['gone'] and any('Deleted “Team standup” and the rest of the series' in t for t in result['series']['toasts']) and any('<t:RecurringMasterItemId OccurrenceId="STAND"/>' in d for d in deletes) and 'STAND2' not in EVENTS['A'],
         'remove_cancelled': result['removeCancelled']['actions'] == ['Remove from calendar'] and result['removeCancelled']['gone'] and any('<t:ItemId Id="GONE"/>' in d and 'SendToNone' in d for d in deletes),
         'email_strip': em.get('row') and em.get('header') and len(em.get('strip', [])) == 2 and em['strip'][0].endswith('1 PM – 3 PM') and em['strip'][1].endswith('9 AM – 12 PM'),
         'email_editor': em.get('row') and em['editor']['title'] == SUBJECT and set(em['editor']['invitees']) == {'Priya Nair', 'Dana Whitfield'} and em['editor']['startTime'] == '13:00' and em['editor']['endTime'] == '15:00'

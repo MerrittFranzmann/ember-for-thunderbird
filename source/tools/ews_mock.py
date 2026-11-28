@@ -74,7 +74,7 @@ class EwsMock:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.port = self.server.server_address[1]
 
-    def item(self, i, e, details=False):
+    def item(self, i, e, details=False, recurrence=''):
         my = self.answers.get(i, e.get('my', 'Accept'))
         xml = (f'<t:CalendarItem><t:ItemId Id="{i}" ChangeKey="ck-{i}"/><t:Subject>{esc(e["subject"])}</t:Subject><t:Start>{iso(e["start"])}</t:Start><t:End>{iso(e["end"])}</t:End>'
                f'<t:IsAllDayEvent>{"true" if e.get("all_day") else "false"}</t:IsAllDayEvent><t:Location>{esc(e.get("location", ""))}</t:Location>'
@@ -83,7 +83,7 @@ class EwsMock:
         if details:
             xml += (f'<t:CalendarItemType>{e.get("type", "Single")}</t:CalendarItemType><t:IsMeeting>{"true" if e.get("attendees") else "false"}</t:IsMeeting>'
                     f'<t:ReminderIsSet>{"true" if e.get("reminder", 15) >= 0 else "false"}</t:ReminderIsSet><t:ReminderMinutesBeforeStart>{max(0, e.get("reminder", 15))}</t:ReminderMinutesBeforeStart>'
-                    f'<t:Body BodyType="Text">{esc(e.get("body", ""))}</t:Body>')
+                    f'<t:Body BodyType="Text">{esc(e.get("body", ""))}</t:Body>{recurrence}')
             if e.get('organizer'):
                 xml += f'<t:Organizer><t:Mailbox><t:Name>{esc(e["organizer"][0])}</t:Name><t:EmailAddress>{e["organizer"][1]}</t:EmailAddress></t:Mailbox></t:Organizer>'
             if e.get('attendees'):
@@ -163,6 +163,18 @@ class EwsMock:
             start, end = (parse(v) for v in re.search(r'StartDate="([^"]+)" EndDate="([^"]+)"', body).groups())
             shown = ''.join(self.item(i, e) for i, e in events.items() if e['start'] < end and e['end'] > start)
             return ok('FindItem', f'<m:RootFolder IncludesLastItemInRange="true"><t:Items>{shown}</t:Items></m:RootFolder>')
+        if '<m:GetItem' in body and '<t:RecurringMasterItemId' in body:
+            # An occurrence's series: its first occurrence's times, as a weekly series on that day (or e['repeat_xml']).
+            out = ''
+            for i in re.findall(r'<t:RecurringMasterItemId OccurrenceId="([^"]+)"/>', body):
+                series = events.get(i, {}).get('series')
+                members = sorted((e for e in events.values() if series and e.get('series') == series), key=lambda e: e['start'])
+                if not members: continue
+                first = dict(members[0], type='RecurringMaster')
+                rule = first.get('repeat_xml') or f'<t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>{first["start"].strftime("%A")}</t:DaysOfWeek></t:WeeklyRecurrence>'
+                rec = f'<t:Recurrence>{rule}<t:NoEndRecurrence><t:StartDate>{first["start"].strftime("%Y-%m-%d")}</t:StartDate></t:NoEndRecurrence></t:Recurrence>'
+                out += self.item(f'M-{series}', first, details=True, recurrence=rec)
+            return ok('GetItem', '<m:Items>' + out + '</m:Items>')
         if '<m:GetItem' in body:
             ids = re.findall(r'<t:ItemId Id="([^"]+)"/>', body)
             pool = dict(events)
@@ -181,6 +193,21 @@ class EwsMock:
             return ok('CreateItem', f'<m:Items><t:CalendarItem><t:ItemId Id="{i}" ChangeKey="ck-{i}"/></t:CalendarItem></m:Items>')
         if '<m:UpdateItem' in body:
             i = re.search(r'<t:(?:ItemId Id|RecurringMasterItemId OccurrenceId)="([^"]+)"', body).group(1)
+            # A series change applies to every occurrence (start and end move by the same amount).
+            series = events.get(i, {}).get('series') if '<t:RecurringMasterItemId' in body else None
+            targets = [e for e in events.values() if e.get('series') == series] if series else [events.get(i)] if events.get(i) else []
+            if series:
+                first = min(targets, key=lambda e: e['start'])
+                v = value(body, 'Start')
+                shift = parse(v) - first['start'] if v is not None and 'FieldURI="calendar:Start"' in body else None
+                for e in targets:
+                    for field, key in (('Subject', 'subject'), ('Location', 'location')):
+                        val = value(body, field)
+                        if val is not None and f'FieldURI="{"item" if field == "Subject" else "calendar"}:{field}"' in body: e[key] = val
+                    if shift is not None:
+                        length = e['end'] - e['start']
+                        e['start'] = e['start'] + shift; e['end'] = e['start'] + length
+                return ok('UpdateItem', '<m:Items/>')
             e = events.get(i)
             if e:
                 for field, key, conv in (('Subject', 'subject', str), ('Location', 'location', str), ('Start', 'start', parse), ('End', 'end', parse)):

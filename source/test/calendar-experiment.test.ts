@@ -327,3 +327,31 @@ describe("Thunderbird's own calendars (Google and other CalDAV)", () => {
     expect(isGoogleMail("me@notgmail.com", "mail.notgmail.com")).toBe(false);
   });
 });
+
+describe("reading a series' repeat for the editor", () => {
+  const { repeatOfRule, repeatOfEws } = module.exports;
+  it("maps RRULEs to the editor's choices and anything else to custom", () => {
+    expect(repeatOfRule("RRULE:FREQ=DAILY;COUNT=30")).toBe("daily");
+    expect(repeatOfRule("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR")).toBe("weekdays");
+    expect(repeatOfRule("FREQ=WEEKLY;BYDAY=TH")).toBe("weekly");
+    expect(repeatOfRule("FREQ=WEEKLY;INTERVAL=2;BYDAY=TH;UNTIL=20270101T000000Z")).toBe("biweekly");
+    expect(repeatOfRule("FREQ=MONTHLY;BYMONTHDAY=12")).toBe("monthly");
+    expect(repeatOfRule("FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=4")).toBe("yearly");
+    expect(repeatOfRule("FREQ=MONTHLY;BYDAY=2TU")).toBe("custom");
+    expect(repeatOfRule("FREQ=WEEKLY;BYDAY=MO,WE")).toBe("custom");
+    expect(repeatOfRule("FREQ=DAILY;INTERVAL=3")).toBe("custom");
+    expect(repeatOfRule("")).toBe("");
+  });
+  it("reads Exchange's Recurrence element the same way", () => {
+    const wrap = (p: string) => `<t:Subject>x</t:Subject><t:Recurrence>${p}<t:NoEndRecurrence><t:StartDate>2026-11-02</t:StartDate></t:NoEndRecurrence></t:Recurrence>`;
+    expect(repeatOfEws(wrap("<t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>"))).toBe("weekly");
+    expect(repeatOfEws(wrap("<t:WeeklyRecurrence><t:Interval>2</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>"))).toBe("biweekly");
+    expect(repeatOfEws(wrap("<t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday Tuesday Wednesday Thursday Friday</t:DaysOfWeek></t:WeeklyRecurrence>"))).toBe("weekdays");
+    expect(repeatOfEws(wrap("<t:DailyRecurrence><t:Interval>1</t:Interval></t:DailyRecurrence>"))).toBe("daily");
+    expect(repeatOfEws(wrap("<t:RelativeMonthlyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Tuesday</t:DaysOfWeek><t:DayOfWeekIndex>Second</t:DayOfWeekIndex></t:RelativeMonthlyRecurrence>"))).toBe("custom");
+    expect(repeatOfEws("<t:Subject>x</t:Subject>")).toBe("");
+  });
+  it("asks Exchange for an occurrence's series by its occurrence id", () => {
+    expect(ewsGetItemRequest(["OCC1"], ["calendar:Recurrence"], "Text", { master: true })).toContain('<t:RecurringMasterItemId OccurrenceId="OCC1"/>');
+  });
+});

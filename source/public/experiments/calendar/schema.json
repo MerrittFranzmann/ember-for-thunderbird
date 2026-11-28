@@ -155,7 +155,7 @@
           {
             "name": "itemId",
             "type": "string"
-          }
+          }, {"name": "options", "type": "object", "optional": true, "additionalProperties": {"type": "any"}}
         ]
       },
       {

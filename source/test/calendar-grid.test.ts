@@ -169,3 +169,15 @@ describe("search results once per series", () => {
     expect(out.map((r) => [r.event.subject, new Date(r.event.start).getDate(), r.count])).toEqual([["Standup", 19, 4], ["Offsite", 21, 1], ["Retro", 14, 1], ["Kickoff", 10, 1]]);
   });
 });
+
+describe("overlapping events cascade", () => {
+  const evt = (h1: number, m1: number, h2: number, m2: number): any => ({ accountId: "a", id: `${h1}${m1}`, subject: "x", location: "", start: new Date(2026, 10, 16, h1, m1).toISOString(), end: new Date(2026, 10, 16, h2, m2).toISOString(), allDay: false });
+  it("lets an event fill the lanes free beside it", () => {
+    const a = evt(9, 0, 12, 0), b = evt(9, 0, 10, 0), c = evt(9, 0, 9, 30), d = evt(10, 0, 11, 0);
+    const placed = placeDay([a, b, c, d], new Date(2026, 10, 16), 52);
+    const of = (e: any) => placed.find((p) => p.event === e)!;
+    expect([of(a).lane, of(b).lane, of(c).lane, of(d).lane]).toEqual([0, 1, 2, 1]);
+    // d (10–11) has lane 2 free beside it (c ended at 9:30); c is the last lane.
+    expect([of(a).span, of(b).span, of(c).span, of(d).span]).toEqual([1, 1, 1, 2]);
+  });
+});

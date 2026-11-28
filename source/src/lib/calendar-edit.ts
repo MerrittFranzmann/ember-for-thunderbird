@@ -13,6 +13,10 @@ export interface EventDraft {
   changeKey?: string;
   /** One occurrence of a repeating series (its repeat can't change here). */
   occurrence?: boolean;
+  /** Every event of a series (itemId is one of its occurrences; the times are the series' first). */
+  series?: boolean;
+  /** The series repeats in a way the editor can't show: kept as it is. */
+  customRepeat?: boolean;
   title: string;
   location: string;
   notes: string;
@@ -81,7 +85,10 @@ export function draftForSlot(accountId: string, start: number, end: number, allD
 export interface EventSource {
   accountId: string; id: string; changeKey?: string; type?: string; subject: string; location: string; body?: string; start: string; end: string;
   allDay: boolean; freeBusy: string; reminder?: number | null; attendees?: { name: string; email: string; role?: string }[];
+  /** How a series repeats (sparkCalendar.eventDetails): a Repeat, "custom", or "". */
+  repeat?: string;
 }
+const REPEATS: Repeat[] = ["none", "daily", "weekdays", "weekly", "biweekly", "monthly", "yearly"];
 /** The draft to change an event the user owns. Its repeat shows as it is; a series' times change per occurrence. */
 export function draftFromEvent(event: EventSource, me: ReadonlySet<string>): EventDraft {
   const draft = blank(event.accountId, Date.parse(event.start), Date.parse(event.end), event.allDay);
@@ -92,6 +99,10 @@ export function draftFromEvent(event: EventSource, me: ReadonlySet<string>): Eve
     showAs: (SHOW_AS.some(([v]) => v === event.freeBusy) ? event.freeBusy : "Busy") as ShowAs,
     invitees: (event.attendees || []).filter((a) => a.role !== "organizer" && !me.has(a.email.toLowerCase())).map((a) => ({ name: a.name || "", email: a.email })),
   });
+  if (!draft.occurrence && event.repeat) {
+    if (REPEATS.includes(event.repeat as Repeat)) draft.repeat = event.repeat as Repeat;
+    else draft.customRepeat = true;
+  }
   const { original: _, ...copy } = draft;
   draft.original = structuredClone(copy);
   return draft;
@@ -153,7 +164,7 @@ export function draftChanges(draft: EventDraft, timeZone: string): { changes: Pa
   const emails = (list: EwsEvent["attendees"]) => list.map((p) => p.email.toLowerCase()).sort().join(",");
   if (emails(after.attendees) !== emails(before.attendees)) changes.attendees = after.attendees;
   // A series' pattern is changed on the series itself, not from one occurrence.
-  if (!draft.occurrence && draft.repeat !== draft.original.repeat) Object.assign(changes, { recurrence: after.recurrence, timeZone });
+  if (!draft.occurrence && !draft.customRepeat && draft.repeat !== draft.original.repeat) Object.assign(changes, { recurrence: after.recurrence, timeZone });
   const meeting = after.attendees.length > 0 || before.attendees.length > 0;
   const worthTelling = Object.keys(changes).some((k) => k !== "reminder" && k !== "freeBusy" && k !== "timeZone");
   return { changes, send: meeting && worthTelling };

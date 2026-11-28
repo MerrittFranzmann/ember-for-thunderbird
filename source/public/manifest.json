@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ember for Thunderbird",
   "short_name": "Ember",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A fast, focused mail app inside Thunderbird: Smart Inbox, conversations, quick actions, calendar and an in-app composer. Thunderbird keeps doing accounts, sync, storage and sending.",
   "author": "Merritt Franzmann",
   "homepage_url": "https://github.com/MerrittFranzmann/ember-for-thunderbird",

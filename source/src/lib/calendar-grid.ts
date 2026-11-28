@@ -107,6 +107,8 @@ export interface Placed {
   /** Side-by-side lanes for overlapping events: this one's lane, and how many its group uses. */
   lane: number;
   lanes: number;
+  /** Lanes it can fill from its own (rightwards, while nothing else overlaps it there). */
+  span: number;
   startsBefore: boolean;
   endsAfter: boolean;
 }
@@ -132,7 +134,11 @@ export function placeDay(events: CalendarEvent[], day: number | Date, hourPx = H
       lanes[lane] = item.endMin;
       item.lane = lane;
     }
-    for (const item of group) placed.push({ event: item.event, top: item.startMin * minute, height: (item.endMin - item.startMin) * minute, lane: item.lane, lanes: lanes.length, startsBefore: item.startsBefore, endsAfter: item.endsAfter });
+    for (const item of group) {
+      let span = 1;
+      while (item.lane + span < lanes.length && !group.some((o) => o !== item && o.lane === item.lane + span && o.startMin < item.endMin && o.endMin > item.startMin)) span++;
+      placed.push({ event: item.event, top: item.startMin * minute, height: (item.endMin - item.startMin) * minute, lane: item.lane, lanes: lanes.length, span, startsBefore: item.startsBefore, endsAfter: item.endsAfter });
+    }
     group = [];
   };
   for (const item of items) {

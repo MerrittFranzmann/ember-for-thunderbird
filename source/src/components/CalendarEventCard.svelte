@@ -62,18 +62,32 @@
   const meeting = $derived(!!details && (details.isMeeting || people.some((p) => p.role !== "organizer" && !p.me)));
   const series = $derived(details?.type === "Occurrence" || details?.type === "Exception");
   let confirming = $state(false);
+  let choosingEdit = $state(false);
   let note = $state("");
   // A long invitee list shows its first few until opened, so the card stays short enough to see whole.
   const PEOPLE_SHOWN = 6;
   let allPeople = $state(false);
   const shownPeople = $derived(allPeople || panel || people.length <= PEOPLE_SHOWN + 1 ? people : people.slice(0, PEOPLE_SHOWN));
-  $effect(() => { key; confirming = false; note = ""; allPeople = false; });
+  $effect(() => { key; confirming = false; choosingEdit = false; note = ""; allPeople = false; });
   async function edit() {
     if (!details) await calendar.loadDetails(event);
     const source = calendar.details[key];
     const from = source && !("error" in source) ? source : { ...event, body: "", attendees: [] };
     onclose?.();
     void calendar.openEditor(draftFromEvent(from, store.me));
+  }
+  /** Every event of the series: the editor opens on the series (its first time, how it repeats). */
+  async function editSeries() {
+    choosingEdit = false;
+    try {
+      const source = await calendar.seriesDetails(event);
+      const draft = draftFromEvent(source, store.me);
+      // Changed through this occurrence's id (Exchange and Thunderbird find its series from it).
+      draft.itemId = event.id; draft.series = true; draft.occurrence = false;
+      if (draft.original) { draft.original.itemId = event.id; draft.original.series = true; draft.original.occurrence = false; }
+      onclose?.();
+      void calendar.openEditor(draft);
+    } catch (e: any) { store.toast({ text: `Couldn't open the series: ${e?.message || e}`, kind: "error" }); }
   }
   async function remove(options: { series?: boolean; cancel?: boolean }) {
     // Worded before the call: the card closes once the event is gone.
@@ -166,9 +180,18 @@
   {/if}
   {#if own}
     <div class="rule"></div>
-    {#if !confirming}
+    {#if choosingEdit}
+      <div class="confirm" role="group" aria-label="Edit a repeating event">
+        <p>Change just this event, or every event in the series?</p>
+        <div class="actions wrap">
+          <button onclick={() => { choosingEdit = false; void edit(); }}>This one</button>
+          <button onclick={editSeries}>All events</button>
+          <button onclick={() => (choosingEdit = false)}>Keep</button>
+        </div>
+      </div>
+    {:else if !confirming}
       <div class="actions">
-        <button disabled={!loaded || calendar.saving} onclick={edit}>Edit</button>
+        <button disabled={!loaded || calendar.saving} onclick={() => { if (series) choosingEdit = true; else void edit(); }}>Edit</button>
         <button class="danger" disabled={!loaded || calendar.saving} onclick={() => (confirming = true)}>{meeting ? "Cancel meeting" : "Delete"}</button>
       </div>
     {:else}

@@ -21,7 +21,7 @@ export interface Connectable { accountId: string; name: string; email: string; g
 export interface OtherCalendar { key: string; accountId: string; kind: "folder" | "person"; name: string; email?: string; folderId?: string; group?: string; added?: boolean }
 interface SharedAnswer { events: CalendarEvent[]; errors: { key: string; message: string }[]; access: Record<string, "full" | "busy"> }
 export interface Attendee { name: string; email: string; role?: string; response?: string }
-export type EventDetails = CalendarEvent & { body: string; attendees: Attendee[]; changeKey?: string; type?: string; isMeeting?: boolean };
+export type EventDetails = CalendarEvent & { body: string; attendees: Attendee[]; changeKey?: string; type?: string; isMeeting?: boolean; repeat?: string };
 export type Response = "accept" | "tentative" | "decline";
 
 /** A range read this long ago is shown at once and read again in the background. */
@@ -282,6 +282,10 @@ class CalendarState {
     this.selected = event ? eventKey(event) : null;
     if (event && !event.busyOnly) void this.loadDetails(event);
   }
+  /** The series an occurrence belongs to (its first time and how it repeats), to change every event in it. */
+  async seriesDetails(event: CalendarEvent): Promise<EventDetails> {
+    return api.sparkCalendar.eventDetails(event.accountId, event.id, { series: true });
+  }
   async loadDetails(event: CalendarEvent) {
     const key = eventKey(event);
     if (this.details[key] && !("error" in this.details[key])) return;
@@ -353,7 +357,7 @@ class CalendarState {
       } else {
         const { changes, send } = draftChanges(draft, zone);
         if (!Object.keys(changes).length) { this.editor = null; return { ok: true, message: "" }; }
-        await api.sparkCalendar.updateEvent(draft.accountId, draft.itemId, changes, { changeKey: draft.changeKey || "", send });
+        await api.sparkCalendar.updateEvent(draft.accountId, draft.itemId, changes, { changeKey: draft.changeKey || "", send, series: !!draft.series });
         message = send ? `Updated “${draft.title || "the event"}” and told the invitees` : `Saved “${draft.title || "the event"}”`;
       }
       this.editor = null;

@@ -57,11 +57,13 @@ function referenceItem(itemId, changeKey) {
   return `<t:ReferenceItemId Id="${xmlEscape(itemId)}"${changeKey ? ` ChangeKey="${xmlEscape(changeKey)}"` : ""}/>`;
 }
 
-function ewsGetItemRequest(itemIds, fields, bodyType = "") {
+/** GetItem for items by id; with `master`, each id is an occurrence and its series (the recurring master) is read. */
+function ewsGetItemRequest(itemIds, fields, bodyType = "", { master = false } = {}) {
   const uris = fields.map((field) => `<t:FieldURI FieldURI="${field}"/>`).join("");
+  const id = (value) => master ? `<t:RecurringMasterItemId OccurrenceId="${xmlEscape(value)}"/>` : `<t:ItemId Id="${xmlEscape(value)}"/>`;
   return ewsEnvelope(`<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape>${bodyType ? `<t:BodyType>${bodyType}</t:BodyType>` : ""}` +
     `<t:AdditionalProperties>${uris}</t:AdditionalProperties></m:ItemShape>` +
-    `<m:ItemIds>${itemIds.map((id) => `<t:ItemId Id="${xmlEscape(id)}"/>`).join("")}</m:ItemIds></m:GetItem>`);
+    `<m:ItemIds>${itemIds.map(id).join("")}</m:ItemIds></m:GetItem>`);
 }
 
 function ewsDeleteRequest(itemId) {
@@ -487,6 +489,42 @@ function timeChunks(start, end, days = 31) {
 // Ember's id for one: "cal:" and Thunderbird's calendar id (Exchange accounts are their account key).
 const TB_PREFIX = "cal:";
 const ICAL_DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+/** The editor's repeat choice for an RRULE: "" for none, "custom" for a pattern it can't show (kept as it is). */
+function repeatOfRule(rule) {
+  const text = String(rule || "").replace(/^RRULE:/i, "").trim().toUpperCase();
+  if (!text) return "";
+  const p = Object.fromEntries(text.split(";").map((part) => part.split("=")));
+  const interval = Number(p.INTERVAL || 1);
+  const days = (p.BYDAY || "").split(",").filter(Boolean);
+  if (p.BYSETPOS || p.BYWEEKNO || p.BYYEARDAY || p.BYHOUR || p.BYMINUTE || days.some((d) => /\d/.test(d))) return "custom";
+  if (p.FREQ === "DAILY") return interval === 1 && !days.length ? "daily" : "custom";
+  if (p.FREQ === "WEEKLY") {
+    if (interval === 1 && days.join(",") === "MO,TU,WE,TH,FR") return "weekdays";
+    if (days.length <= 1) return interval === 1 ? "weekly" : interval === 2 ? "biweekly" : "custom";
+    return "custom";
+  }
+  if (p.FREQ === "MONTHLY") return interval === 1 && !days.length ? "monthly" : "custom";
+  if (p.FREQ === "YEARLY") return interval === 1 && !days.length ? "yearly" : "custom";
+  return "custom";
+}
+/** The same for an Exchange item's Recurrence element. */
+function repeatOfEws(xml) {
+  const found = /<t:Recurrence>([\s\S]*?)<\/t:Recurrence>/.exec(xml || "");
+  if (!found) return "";
+  const r = found[1];
+  const interval = Number((/<t:Interval>(\d+)<\/t:Interval>/.exec(r) || [])[1] || 1);
+  if (/<t:DailyRecurrence>/.test(r)) return interval === 1 ? "daily" : "custom";
+  const weekly = /<t:WeeklyRecurrence>[\s\S]*?<t:DaysOfWeek>([^<]*)<\/t:DaysOfWeek>/.exec(r);
+  if (weekly) {
+    const days = weekly[1].trim().split(/\s+/);
+    if (interval === 1 && (days.join(" ") === "Monday Tuesday Wednesday Thursday Friday" || days.join(" ") === "Weekday")) return "weekdays";
+    if (days.length === 1 && EWS_WEEKDAYS.includes(days[0])) return interval === 1 ? "weekly" : interval === 2 ? "biweekly" : "custom";
+    return "custom";
+  }
+  if (/<t:AbsoluteMonthlyRecurrence>/.test(r)) return interval === 1 ? "monthly" : "custom";
+  if (/<t:AbsoluteYearlyRecurrence>/.test(r)) return "yearly";
+  return "custom";
+}
 /** The RRULE value for the editor's repeat choice ("" for none). */
 function icalRule(recurrence) {
   if (!recurrence || !/^\d{4}-\d{2}-\d{2}$/.test(recurrence.start || "")) return "";
@@ -521,7 +559,7 @@ function isGoogleMail(email, incomingHost) {
   return /@(gmail|googlemail)\.com$/i.test(email || "") || /(^|\.)(gmail|googlemail)\.com$/i.test(incomingHost || "");
 }
 
-if (typeof module === "object") module.exports = { icalRule, icalFreeBusy, icalShowAs, tbItemId, tbParseId, isGoogleMail, allDayDates, ewsCalendarFolder, ewsDefaultFoldersRequest, ewsDefaultFolders, ewsCalendarFoldersRequest, ewsCalendarFolders, ewsCommonViewsRequest, ewsLinksRequest, ewsAddressBookDn, ewsCalendarLinks, ewsResolveRequest, ewsResolved, ewsConvertIdRequest, ewsConvertedId, sharedItems, busyItems, timeChunks, ewsAvailabilityRequest, ewsAvailability,ewsRecurrence, ewsCreateEventRequest, ewsUpdateEventRequest, ewsDeleteEventRequest, ewsCancelMeetingRequest, ewsResponseRequest, ewsRemoveRequest, ewsGetItemRequest, ewsDeleteRequest, ewsCalendarViewRequest, ewsCalendarItems, ewsMeetingMessage, ewsPeople, ewsElements, ewsResult, imipBody };
+if (typeof module === "object") module.exports = { repeatOfRule, repeatOfEws, icalRule, icalFreeBusy, icalShowAs, tbItemId, tbParseId, isGoogleMail, allDayDates, ewsCalendarFolder, ewsDefaultFoldersRequest, ewsDefaultFolders, ewsCalendarFoldersRequest, ewsCalendarFolders, ewsCommonViewsRequest, ewsLinksRequest, ewsAddressBookDn, ewsCalendarLinks, ewsResolveRequest, ewsResolved, ewsConvertIdRequest, ewsConvertedId, sharedItems, busyItems, timeChunks, ewsAvailabilityRequest, ewsAvailability,ewsRecurrence, ewsCreateEventRequest, ewsUpdateEventRequest, ewsDeleteEventRequest, ewsCancelMeetingRequest, ewsResponseRequest, ewsRemoveRequest, ewsGetItemRequest, ewsDeleteRequest, ewsCalendarViewRequest, ewsCalendarItems, ewsMeetingMessage, ewsPeople, ewsElements, ewsResult, imipBody };
 
 var sparkCalendar = class extends ExtensionCommon.ExtensionAPI {
   getAPI(context) {
@@ -1123,28 +1161,33 @@ var sparkCalendar = class extends ExtensionCommon.ExtensionAPI {
           return null;
         }),
         /** One event's notes (plain text), organizer and attendees with their answers, for the Calendar page. */
-        eventDetails: readable(async (accountId, itemId) => {
+        // With options.series: the series an occurrence belongs to (its first time, and how it repeats).
+        eventDetails: readable(async (accountId, itemId, options) => {
+          const series = !!(options && options.series);
           if (String(accountId).startsWith(TB_PREFIX)) {
             const c = tbCalendar(accountId);
-            const { parent, item } = await tbItem(c, itemId);
+            const { parent, item: occurrence } = await tbItem(c, itemId);
+            const item = series ? parent : occurrence;
+            const rules = parent.recurrenceInfo ? parent.recurrenceInfo.getRecurrenceItems() : [];
+            const repeat = !rules.length ? "" : rules.length > 1 || rules[0].isNegative || !(rules[0] instanceof Ci.calIRecurrenceRule) ? "custom" : repeatOfRule(rules[0].icalString);
             return {
               ...tbEvent(item, c, true), changeKey: "", isMeeting: item.getAttendees().length > 0,
-              type: item.recurrenceId ? "Occurrence" : parent.recurrenceInfo ? "RecurringMaster" : "Single",
+              type: item.recurrenceId ? "Occurrence" : parent.recurrenceInfo ? "RecurringMaster" : "Single", repeat,
             };
           }
           const target = calendarTargets().find((t) => t.accountId === accountId);
           if (!target) throw new ExtensionError("This event isn't on an Exchange calendar Ember can reach.");
-          const extra = ["calendar:CalendarItemType", "calendar:IsMeeting", "item:ReminderIsSet", "item:ReminderMinutesBeforeStart"];
-          let text = await ews(target, ewsGetItemRequest([itemId], [...CALENDAR_FIELDS, ...extra, "item:Body", ...PEOPLE_FIELDS], "Text"), { check: false });
+          const extra = ["calendar:CalendarItemType", "calendar:IsMeeting", "item:ReminderIsSet", "item:ReminderMinutesBeforeStart", ...(series ? ["calendar:Recurrence"] : [])];
+          let text = await ews(target, ewsGetItemRequest([itemId], [...CALENDAR_FIELDS, ...extra, "item:Body", ...PEOPLE_FIELDS], "Text", { master: series }), { check: false });
           // A server that refuses the attendee fields still gives the notes.
-          if (!ewsResult(200, text).ok) text = await ews(target, ewsGetItemRequest([itemId], [...CALENDAR_FIELDS, "item:Body"], "Text"));
+          if (!ewsResult(200, text).ok) text = await ews(target, ewsGetItemRequest([itemId], [...CALENDAR_FIELDS, "item:Body", ...(series ? ["calendar:Recurrence"] : [])], "Text", { master: series }));
           const [element] = ewsElements(text, "CalendarItem");
           if (!element) throw new ExtensionError("Exchange didn't return this event.");
           const [item] = ewsCalendarItems(text);
           return {
             ...item, accountId, body: ewsValue(element.inner, "Body").slice(0, 30000), attendees: ewsPeople(element.inner),
             changeKey: ewsId(element.inner, "ItemId", "ChangeKey"), type: ewsValue(element.inner, "CalendarItemType") || "Single",
-            isMeeting: ewsValue(element.inner, "IsMeeting") === "true",
+            isMeeting: ewsValue(element.inner, "IsMeeting") === "true", repeat: repeatOfEws(element.inner),
           };
         }),
         /** Make an event on an account's calendar (with attendees, Exchange invites them). Returns its id. */

@@ -266,7 +266,9 @@ return { found, shown, cleared: !document.querySelector('.calendar .results') };
         'week_grid': week['cols'] == 7 and week['pressed'] == ['Week'] and week['todayIsRed'] and week['nowLine'] and bool(week['nowLabel']),
         'events_shown_declined_left_out': all(t in week['titles'] for t in ['Weekly team sync', 'Budget review', 'Sound mix review', 'Edit check-in', 'Board packet prep', 'Trailer review', OFFSITE]) and 'Declined thing' not in week['titles'],
         'all_day_row': week['allDay'] == ['Spring retreat planning'],
-        'overlaps_side_by_side': week['budget']['width'] == week['mix']['width'] and '50%' in week['budget']['width'] and week['budget']['left'] != week['mix']['left'] and '50%' in week['own']['width'] and '50%' in week['trailer']['width'],
+        # Two lanes cascade (1.0.12): the first reaches under the second (85%), the second keeps its half.
+        'overlaps_side_by_side': '0%' in week['budget']['left'] and '85%' in week['budget']['width'] and '50%' in week['mix']['left'] and '50%' in week['mix']['width']
+            and '85%' in week['own']['width'] and '50%' in week['trailer']['width'],
         'looks': 'unanswered' in week['check']['cls'] and 'tentative' in week['mix']['cls'] and 'cancelled' in week['cancel']['cls'] and 'busy' in week['sync']['cls'],
         'tinted_with_edge': bool(week['tint']) and 'inset' in (week['tint'][2] or '') and week['tint'][0] != 'rgba(0, 0, 0, 0)',
         'dark_tint_differs': result['darkTint'] != week['tint'][:2],
